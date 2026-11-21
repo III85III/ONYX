@@ -6,12 +6,13 @@ android {
         applicationId 'io.github.iii85iii.vpn'
         minSdk 26
         targetSdk 34
-        versionCode = (project.findProperty('versionCodeOverride') ?: '23053').toInteger()
-        versionName = project.findProperty('versionNameOverride') ?: '1.1.26'
+        versionCode = (project.findProperty('versionCodeOverride') ?: '23054').toInteger()
+        versionName = project.findProperty('versionNameOverride') ?: '1.1.27'
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     buildTypes { release { minifyEnabled false } }
     buildFeatures { buildConfig true }
+    sourceSets.main.assets.srcDir('../../../desktop/interface')
     androidResources { ignoreAssetsPattern 'accounts_pool.json:pool.json:*.dpapi:*.token:*.log' }
     packaging {
         resources {

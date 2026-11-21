@@ -25,8 +25,8 @@ using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("ONYX // VPN")]
 [assembly: System.Reflection.AssemblyProduct("ONYX // VPN")]
-[assembly: System.Reflection.AssemblyVersion("1.1.20.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.1.20.0")]
+[assembly: System.Reflection.AssemblyVersion("1.1.27.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.1.27.0")]
 
 [assembly: System.Reflection.AssemblyDescription("ONYX // VPN desktop client")]
 [assembly: System.Reflection.AssemblyCompany("III85III")]
@@ -1787,7 +1787,18 @@ namespace Onyx.Vpn {
             if(requiredUpdateButton!=null)requiredUpdateButton.Enabled=false;
             if(requiredUpdateStatus!=null)requiredUpdateStatus.Text="Checking for updates\u2026";
             if(appUpdateButton!=null)appUpdateButton.Text="Checking\u2026";
-            try{await AppUpdates.Check(this,text=>{if(!closing&&appUpdateButton!=null)appUpdateButton.Text=text;if(requiredUpdateStatus!=null)requiredUpdateStatus.Text=text;},path=>{Process.Start(new ProcessStartInfo(path,"-update -wait-pid "+Process.GetCurrentProcess().Id){UseShellExecute=true,WorkingDirectory=Path.GetTempPath()});allowClose=true;try{engine.StopFast();}catch{}Environment.Exit(0);},manual);}finally{updating=false;if(!closing&&appUpdateButton!=null)appUpdateButton.Text="Check for updates";if(requiredUpdateButton!=null){requiredUpdateButton.Enabled=true;requiredUpdateButton.Text="Update";}}
+            try{
+                await AppUpdates.Check(this,text=>{
+                    if(!closing && appUpdateButton!=null)appUpdateButton.Text=text;
+                    if(requiredUpdateStatus!=null)requiredUpdateStatus.Text=text;
+                },path=>{
+                    Process.Start(new ProcessStartInfo(path){UseShellExecute=true,WorkingDirectory=Path.GetTempPath()});
+                },manual);
+            }finally{
+                updating=false;
+                if(!closing && appUpdateButton!=null)appUpdateButton.Text="Check for updates";
+                if(requiredUpdateButton!=null){requiredUpdateButton.Enabled=true;requiredUpdateButton.Text="Update";}
+            }
         }
         readonly LuxuryTitleBar titleBar;
         readonly Panel sidebar = new Panel();
@@ -3871,14 +3882,6 @@ namespace Onyx.Vpn {
                 }
                 if (hasUsable) return;
 
-                foreach (var a in Json.Rows(accounts, "accounts")) {
-                    string id = Json.Str(a, "id");
-                    string st = Json.Str(a, "status");
-                    if (st == "reauth_required" || st == "sign in again") {
-                        try { await engine.Api("DELETE", "/api/accounts/" + Uri.EscapeDataString(id)); } catch { }
-                    }
-                }
-
                 await FetchAndImportAccount();
                 await RefreshAccounts();
             } catch { }
@@ -3912,8 +3915,12 @@ namespace Onyx.Vpn {
                                 if (email != "" && token != "") {
                                     var imp = await engine.Api("POST", "/api/accounts/import", new { email = email, refresh_token = token });
                                     string newId = Json.Str(imp, "id");
-                                    if (!string.IsNullOrEmpty(newId)) {
-                                        try { await engine.Api("POST", "/api/accounts/" + Uri.EscapeDataString(newId) + "/refresh"); } catch { }
+                                    if (string.IsNullOrEmpty(newId)) return false;
+                                    try {
+                                        await engine.Api("POST", "/api/accounts/" + Uri.EscapeDataString(newId) + "/refresh");
+                                    } catch (Exception error) {
+                                        lastActionError = "Account saved, but its quota could not be verified. " + error.Message;
+                                        return false;
                                     }
                                     imported = true;
                                 }
@@ -3974,19 +3981,6 @@ namespace Onyx.Vpn {
                 throw new IOException(string.Format("Your current account ({0}) is healthy with {1} GB allowance remaining. Replacement accounts from storage are only granted when an account is broken, expired, or exhausted.", healthyEmail, gb));
             }
 
-            foreach (var a in rows) {
-                string id = Json.Str(a, "id");
-                string st = Json.Str(a, "status");
-                var usage = Json.Child(a, "usage");
-                long rem = (long)Json.Num(usage, "remaining_bytes");
-                if (st == "reauth_required" || st == "sign in again" || rem <= 0 || !hasHealthyAccount) {
-                    try { await engine.Api("DELETE", "/api/accounts/" + Uri.EscapeDataString(id)); } catch { }
-                }
-            }
-
-            string allocPath = Path.Combine(engine.DataDir, "allocation.dpapi");
-            try { if (File.Exists(allocPath)) File.Delete(allocPath); } catch { }
-
             bool assigned = await FetchAndImportAccount();
             if (!assigned) {
                 throw new IOException("Could not retrieve a replacement account from storage at this moment. Check your network or try again shortly.");
@@ -3997,7 +3991,7 @@ namespace Onyx.Vpn {
             } catch { }
 
             await RefreshAccounts();
-            ShowNotice("Account Renewed", "A new account with 50 GB allowance has been assigned from storage and is ready.", "", false);
+            ShowNotice("Account checked", "The quota check completed. Open Accounts to see the reported allowance.", "", false);
         }
 
         private async Task ReplaceExhaustedAccount(string email, string accountId) {

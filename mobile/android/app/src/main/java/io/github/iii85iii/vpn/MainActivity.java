@@ -51,6 +51,12 @@ public final class MainActivity extends Activity {
     }
     private final Set<String> autoSyncedAccounts=new HashSet<>();
     private LinearLayout content,nav;
+    private FrameLayout viewport;
+    private LinearLayout nativePanel;
+    private Button closeSheet;
+    private OnyxDashboard dashboard;
+    private boolean dashboardReady;
+    private JSONArray dashboardServers=new JSONArray();
     private FrameLayout adContainer;
     private TextView statusText,detailText,speedText,feedback,server,quotaSummary;
     private Button power;
@@ -114,9 +120,60 @@ public final class MainActivity extends Activity {
         announcementView.setPadding(dp(12), dp(9), dp(12), dp(9));
         announcementView.setBackground(cardBackground(0xFF243448, 12));
         announcementView.setVisibility(View.GONE);
-        root.addView(announcementView, 0);
-        setContentView(root);
-        WindowLayout.apply(this,root);
+        nativePanel=root;
+        viewport=new FrameLayout(this);
+        viewport.setBackgroundColor(BG);
+        viewport.addView(root,new FrameLayout.LayoutParams(-1,-1));
+        closeSheet=new Button(this);
+        closeSheet.setText("Done");
+        closeSheet.setAllCaps(false);
+        closeSheet.setOnClickListener(v->showPage(0));
+        closeSheet.setVisibility(View.GONE);
+        header.addView(closeSheet);
+        try {
+            dashboard=new OnyxDashboard(this,new OnyxDashboard.Host(){
+                public void onReady(){dashboardReady=true;arrangeDashboard();updateHome();}
+                public void onAction(String action){
+                    if(page!=0 || !visible)return;
+                    if(action.startsWith("LOCATION:")){
+                        String code=action.substring(9);
+                        for(int i=0;i<dashboardServers.length();i++){
+                            JSONObject row=dashboardServers.optJSONObject(i);
+                            if(row!=null && code.equals(row.optString("code"))){
+                                api("POST","/api/location",object("country",code),10000,reply->updateHome());
+                                break;
+                            }
+                        }
+                        return;
+                    }
+                    switch(action){
+                        case "POWER": if(ready && power!=null && power.isEnabled())toggleConnection();break;
+                        case "SERVERS": showPage(1);break;
+                        case "LOAD_SERVERS": loadDashboardServers();break;
+                        case "TEST_PING":
+                            if(!pinging){pinging=true;
+                                CoreRuntime.IO.execute(()->{try{CoreRuntime.request("POST","/api/locations/ping",object("codes",new JSONArray()),60000);}
+                                    catch(Exception failure){main.post(()->{if(!isDestroyed())showError("Ping test failed.");});}
+                                    finally{main.post(()->{pinging=false;if(!isDestroyed())loadDashboardServers();});}});
+                            }
+                            break;
+                        case "APPS": showPage(2);break;
+                        case "ACCOUNT": showPage(3);break;
+                        case "SETTINGS": showPage(4);break;
+                        case "SHIELD": showPage(5);break;
+                        case "DETAILS": if(detailText!=null && detailText.getVisibility()==View.VISIBLE)detailText.performClick();else if(feedback!=null)feedback.performClick();break;
+                    }
+                }
+            });
+            viewport.addView(dashboard,0,new FrameLayout.LayoutParams(-1,-1));
+        }catch(RuntimeException unavailable){dashboard=null;}
+        LinearLayout shell=new LinearLayout(this);
+        shell.setOrientation(LinearLayout.VERTICAL);
+        shell.setBackgroundColor(BG);
+        shell.addView(announcementView);
+        shell.addView(viewport,new LinearLayout.LayoutParams(-1,0,1));
+        setContentView(shell);
+        WindowLayout.apply(this,shell);
         showPage(state==null?0:state.getInt("page",0));
         startTunnelCheck(getIntent());
         CoreRuntime.IO.execute(()->{try{CoreRuntime.ensure(this);main.post(()->{if(isDestroyed())return;ready=true;feedback.setText("");showPage(page);if(visible){poll();showAccountIntro();checkForUpdates(false);}});}catch(Exception failure){main.post(()->{if(!isDestroyed()){String msg=failure.getMessage()!=null?failure.getMessage():"engine failure";feedback.setText("Local engine: "+msg);}});}});
@@ -141,11 +198,29 @@ public final class MainActivity extends Activity {
     @Override protected void onStart(){
         super.onStart();
         visible=true;
+        if(dashboard!=null)dashboard.onResume();
         if(ready){poll();showAccountIntro();}
         main.postDelayed(updateAgain,1500);
     }
-    @Override protected void onStop(){visible=false;stopDotPulse();main.removeCallbacks(pollAgain);main.removeCallbacks(updateAgain);super.onStop();}
-    @Override protected void onDestroy(){stopDotPulse();if(signIn!=null)signIn.cancel();main.removeCallbacksAndMessages(null);super.onDestroy();}
+    @Override protected void onStop(){visible=false;if(dashboard!=null)dashboard.onPause();stopDotPulse();main.removeCallbacks(pollAgain);main.removeCallbacks(updateAgain);super.onStop();}
+    @Override protected void onDestroy(){stopDotPulse();if(signIn!=null)signIn.cancel();main.removeCallbacksAndMessages(null);if(dashboard!=null){viewport.removeView(dashboard);dashboard.destroy();}super.onDestroy();}
+    @Override public void onBackPressed(){
+        if(!dashboardReady){super.onBackPressed();return;}
+        if(page!=0){showPage(0);return;}
+        dashboard.evaluateJavascript("window.OnyxVPN.closeDrawer()",result->{if("false".equals(result) && !isDestroyed())finish();});
+    }
+    private void arrangeDashboard(){
+        if(!dashboardReady)return;
+        boolean sheet=page!=0;
+        nativePanel.setVisibility(sheet?View.VISIBLE:View.GONE);
+        closeSheet.setVisibility(sheet?View.VISIBLE:View.GONE);
+        nav.setVisibility(View.GONE);
+        FrameLayout.LayoutParams layout=new FrameLayout.LayoutParams(-1,-1);
+        layout.topMargin=sheet?dp(40):0;
+        nativePanel.setLayoutParams(layout);
+        nativePanel.setBackground(pillBackground(0xff373b46,SURFACE,20,1));
+        dashboard.setImportantForAccessibility(sheet?View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS:View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
+    }
     private TextView label(String value,int size,int color){TextView text=new TextView(this);text.setText(value);text.setTextSize(size);text.setTextColor(color);text.setTypeface(body);text.setLineSpacing(dp(4),1);return text;}
     private GradientDrawable background(int color){GradientDrawable shape=new GradientDrawable();shape.setColor(color);shape.setCornerRadius(dp(16));return shape;}
     private GradientDrawable cardBackground(int color,int radiusDp){GradientDrawable shape=new GradientDrawable();shape.setColor(color);shape.setCornerRadius(dp(radiusDp));return shape;}
@@ -307,6 +382,7 @@ public final class MainActivity extends Activity {
         content.removeAllViews();statusText=detailText=speedText=server=null;power=null;heroInfinity=null;statusDot=null;updateBanner=null;quotaSummary=null;speedCard=null;quotaBar=null;
         stopDotPulse();
  switch(page){case 0:home();break;case 1:locationPage();break;case 2:appRules();break;case 3:accounts();break;case 4:settings();break;case 5:emergencyPage();break;default:help();}
+        arrangeDashboard();
  content.setAlpha(0f);
  content.setTranslationY(dp(8));
  content.animate().alpha(1f).translationY(0f).setDuration(220).setInterpolator(new DecelerateInterpolator()).start();
@@ -681,15 +757,10 @@ public final class MainActivity extends Activity {
                         quotaSummary.setText("Unlimited Plan");
                         if(quotaBar!=null)quotaBar.setProgress(100);
                     }else{
-                        double rem=usage.optDouble("remaining_bytes",0);
-                        double lim=usage.optDouble("limit_bytes",0);
-                        double total=lim>0?lim:(50.0*1024*1024*1024);
-                        if(rem<=0&&lim<=0) rem=total;
-                        quotaSummary.setText(bytes(rem)+" remaining of "+bytes(total));
-                        if(quotaBar!=null){
-                            int pct=(int)Math.max(1,Math.min(100,(rem*100.0/total)));
-                            quotaBar.setProgress(pct);
-                        }
+                        double rem=usage.optDouble("remaining_bytes", -1);
+                        double total=usage.optDouble("limit_bytes", -1);
+                        if (rem < 0) quotaSummary.setText("Quota unavailable");
+                        else quotaSummary.setText(bytes(rem) + " remaining" + (total > 0 ? " of " + bytes(total) : ""));
                     }
                 }else{
                     quotaSummary.setText("Quota unavailable");
@@ -700,6 +771,40 @@ public final class MainActivity extends Activity {
                 if(quotaBar!=null)quotaBar.setProgress(0);
             }
         }
+        if(dashboardReady){
+            JSONObject model=new JSONObject();
+            String dashboardState=!problem.isEmpty()?"error":verified?"connected":checkingAccount||TunnelService.active||transition==VpnLifecycle.Phase.STARTING?"connecting":"disconnected";
+            try{
+                model.put("state",dashboardState);
+                model.put("ready",ready && power.isEnabled());
+                model.put("heading",statusText.getText().toString());
+                model.put("button","CONNECT".contentEquals(power.getText())?"E N T E R":power.getText().toString());
+                model.put("server",selected.isEmpty()?"Automatic":selected);
+                model.put("servers",dashboardServers);
+                model.put("account",quotaSummary.getText().toString());
+                model.put("download",trafficValue(traffic,"down_rate")+"/s");
+                model.put("upload",trafficValue(traffic,"up_rate")+"/s");
+                model.put("totalDl",trafficValue(traffic,"down_total"));
+                model.put("totalUl",trafficValue(traffic,"up_total"));
+                model.put("hint",detailText.getVisibility()==View.VISIBLE?detailText.getText().toString():feedback.getText().toString());
+                dashboard.render(model);
+            }catch(JSONException impossible){throw new IllegalStateException(impossible);}
+        }
+    }
+    private String trafficValue(JSONObject traffic,String key){return traffic!=null && traffic.has(key)?bytes(traffic.optDouble(key)):"—";}
+    private void loadDashboardServers(){
+        if(!ready)return;
+        api("GET","/api/locations",null,15000,reply->{
+            JSONArray rows=reply.optJSONArray("locations"), list=new JSONArray();
+            List<JSONObject> sorted=new ArrayList<>();
+            if(rows!=null)for(int i=0;i<rows.length();i++){JSONObject row=rows.optJSONObject(i);if(row!=null)sorted.add(row);}
+            sorted.sort((a,b)->LocationOrder.compare(a.optString("code"),a.optString("name"),a.optInt("ping_ms"),b.optString("code"),b.optString("name"),b.optInt("ping_ms")));
+            try{
+                for(JSONObject row:sorted)list.put(new JSONObject().put("name",row.optString("name",row.optString("code"))).put("code",row.optString("code")).put("ping",row.optInt("ping_ms")));
+            }catch(JSONException impossible){throw new IllegalStateException(impossible);}
+            dashboardServers=list;
+            updateHome();
+        });
     }
     private String bytes(double amount){if(Double.isNaN(amount)||amount<=0)return "0 B";String[] unit={"B","KB","MB","GB"};int n=0;while(amount>=1000&&n<3){amount/=1000;n++;}return String.format(Locale.US,n==0?"%.0f %s":"%.1f %s",amount,unit[n]);}
     static String connectionProblem(JSONObject value){
@@ -880,16 +985,16 @@ public final class MainActivity extends Activity {
                 LinearLayout quotaBox=new LinearLayout(this);
                 quotaBox.setOrientation(LinearLayout.VERTICAL);
                 quotaBox.setPadding(0,dp(12),0,dp(8));
-                double remBytes=0, limBytes=0;
+                double remBytes=-1, limBytes=-1;
                 boolean isUnlimited=false;
                 String resetStr="";
                 if(usage!=null){
                     isUnlimited=usage.optBoolean("unlimited",false);
-                    remBytes=usage.optDouble("remaining_bytes",0);
-                    limBytes=usage.optDouble("limit_bytes",0);
+                    remBytes=usage.optDouble("remaining_bytes",-1);
+                    limBytes=usage.optDouble("limit_bytes",-1);
                     resetStr=usage.optString("reset_at","");
                 }
-                if(usage==null||(remBytes<=0&&limBytes<=0)){
+                if(!isUnlimited && remBytes < 0 && isEnabled && !"reauth_required".equals(statusStr)){
                     if(!autoSyncedAccounts.contains(id)){
                         autoSyncedAccounts.add(id);
                         api("POST","/api/accounts/"+id+"/refresh",new JSONObject(),15000,r->{if(page==3)showPage(3);});
@@ -899,9 +1004,13 @@ public final class MainActivity extends Activity {
                     TextView remTitle=label("UNLIMITED DATA PLAN",16,GOLD);
                     remTitle.setTypeface(body,Typeface.BOLD);
                     quotaBox.addView(remTitle);
+                }else if(remBytes < 0){
+                    quotaBox.addView(label("reauth_required".equals(statusStr) ? "Sign in again to check quota" : "Quota unavailable. Tap Refresh to retry.",13,MUTED));
+                }else if(limBytes <= 0){
+                    quotaBox.addView(label(bytes(remBytes) + " remaining",16,GOLD));
                 }else{
-                    double totalLimit=limBytes>0?limBytes:(50.0*1024*1024*1024);
-                    double remaining=(remBytes>0||limBytes>0)?remBytes:totalLimit;
+                    double totalLimit=limBytes;
+                    double remaining=remBytes;
                     double used=Math.max(0,totalLimit-remaining);
                     double usedPct=totalLimit>0?(used*100.0/totalLimit):0.0;
                     TextView remBig=label(bytes(remaining),22,GOLD);
@@ -914,7 +1023,7 @@ public final class MainActivity extends Activity {
                     LinearLayout progressHolder=new LinearLayout(this);
                     progressHolder.setOrientation(LinearLayout.HORIZONTAL);
                     progressHolder.setBackground(pillBackground(0,0xFF101319,6,0));
-                    int fillWidthPct=Math.max(2,Math.min(100,(int)Math.round(100-usedPct)));
+                    int fillWidthPct=Math.max(0,Math.min(100,(int)Math.round(100-usedPct)));
                     View fillView=new View(this);
                     fillView.setBackground(pillBackground(0,GOLD,6,0));
                     progressHolder.addView(fillView,new LinearLayout.LayoutParams(0,dp(6),(float)fillWidthPct));
@@ -941,7 +1050,11 @@ public final class MainActivity extends Activity {
                 actionsRow.setGravity(Gravity.CENTER_VERTICAL);
                 actionsRow.setPadding(0,dp(6),0,0);
                 if(!isActive){
-                    Button useBtn=button(isEnabled?"اتصال به این اکانت":"فعال‌سازی و اتصال",()->api("POST","/api/accounts/"+id+"/enabled",object("enabled",true),7000,enabled->api("POST","/api/accounts/"+id+"/activate",new JSONObject(),7000,selected->{feedback.setText("اکانت فعال شد. در حال اتصال...");showPage(0);})));
+                    Button useBtn=button(isEnabled?"Select":"Enable and select",()->api("POST","/api/accounts/"+id+"/enabled",object("enabled",true),7000,enabled->api("POST","/api/accounts/"+id+"/activate",new JSONObject(),7000,selected->{
+                        showPage(0);
+                        if (TunnelService.lifecycle.phase() == VpnLifecycle.Phase.OFF) feedback.setText("Account selected. Tap Connect to start.");
+                        poll();
+                    })));
                     useBtn.setTextColor(BG);
                     useBtn.setBackground(background(GOLD));
                     LinearLayout.LayoutParams useLp=new LinearLayout.LayoutParams(0,dp(42),1);

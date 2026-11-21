@@ -61,7 +61,8 @@ namespace Onyx.Vpn {
                     web.NewWindowRequested += (sender, args) => { args.Handled = true; };
                     web.WebMessageReceived += HandleOnyxAction;
                     web.NavigationCompleted += async (sender, args) => {
-                        if (!args.IsSuccess || IsDisposed) return;
+                        if (IsDisposed) return;
+                        if (!args.IsSuccess) { ShowInterfaceError(); return; }
                         onyxLoaded = true;
                         ShowOnyx();
                         PublishOnyxState();
@@ -74,13 +75,7 @@ namespace Onyx.Vpn {
                     };
                     web.Navigate(OnyxOrigin);
                 } catch (Exception) {
-                    onyxView.Visible = false;
-                    if (titleBar != null) titleBar.Visible = true;
-                    if (sidebar != null) sidebar.Visible = true;
-                    if (contentArea != null) contentArea.Visible = true;
-                    MinimumSize = new Size(740, 540);
-                    Size = new Size(840, 670);
-                    CenterToScreen();
+                    ShowInterfaceError();
                 }
             };
             KeyPreview = true;
@@ -89,6 +84,23 @@ namespace Onyx.Vpn {
                 ShowOnyx();
                 args.Handled = true;
             };
+        }
+
+        void ShowInterfaceError() {
+            if (IsDisposed || Controls.ContainsKey("onyxRecovery")) return;
+            onyxView.Hide();
+            var panel = new FlowLayoutPanel { Name = "onyxRecovery", Dock = DockStyle.Fill, Padding = new Padding(28), FlowDirection = FlowDirection.TopDown, BackColor = BackColor };
+            panel.Controls.Add(new Label { Text = "ONYX // VPN", AutoSize = true, ForeColor = Color.White, Font = Theme.Display(22) });
+            panel.Controls.Add(new Label { Text = "The dashboard could not open. Repair Microsoft Edge WebView2 Runtime or reinstall the complete ONYX package, then reopen ONYX.", Width = 300, Height = 92, ForeColor = Color.Silver });
+            var runtime = new Button { Text = "Get WebView2 Runtime", AutoSize = true };
+            runtime.Click += delegate { ProcessOpenWebView(); };
+            panel.Controls.Add(runtime);
+            Controls.Add(panel);
+            panel.BringToFront();
+        }
+
+        static void ProcessOpenWebView() {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://developer.microsoft.com/microsoft-edge/webview2/") { UseShellExecute = true });
         }
 
         void ShowOnyx() {
@@ -142,6 +154,7 @@ namespace Onyx.Vpn {
                 if (action == "SETTINGS") { OpenDesktopControls(4); return; }
                 if (action == "ACCOUNT") { OpenDesktopControls(3); return; }
                 if (action == "APP_RULES") { OpenDesktopControls(2); return; }
+                if (action == "CHECK_UPDATE" && !onyxPreview) { await CheckForUpdates(true); return; }
                 if (!ready || onyxPreview || onyxActionRunning) return;
                 onyxActionRunning = true;
                 try {
@@ -220,7 +233,12 @@ namespace Onyx.Vpn {
             var accounts = await engine.Api("GET", "/api/accounts");
             onyxAccounts = Json.Rows(accounts, "accounts").Select(account => {
                 var usage = Json.Child(account, "usage");
-                return (object)new { email = Json.Str(account, "email"), plan = usage.Count == 0 ? "Quota unavailable" : Json.Bool(usage, "unlimited") ? "Unlimited" : Theme.Bytes(Json.Num(usage, "remaining_bytes")) + " remaining" };
+                string plan;
+                if (Json.Str(account, "status") == "reauth_required") plan = "Sign in again";
+                else if (Json.Bool(usage, "unlimited")) plan = "Unlimited";
+                else if (Json.Get(usage, "remaining_bytes") == null) plan = "Quota unavailable";
+                else plan = Theme.Bytes(Json.Num(usage, "remaining_bytes")) + " remaining";
+                return (object)new { email = Json.Str(account, "email"), plan = plan };
             }).ToArray();
             var config = Json.Child(await engine.Api("GET", "/api/settings"), "config");
             var rules = SplitRules.Read(config);

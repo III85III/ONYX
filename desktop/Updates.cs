@@ -55,7 +55,7 @@ namespace Onyx.Vpn {
                 long required=update.Size*3+50L*1024*1024;
                 if(new DriveInfo(Path.GetPathRoot(directory)).AvailableFreeSpace<required){Notice(owner,"A little more space is needed","Free at least "+Math.Ceiling(required/(1024d*1024))+" MB on the Windows drive and try again. Nothing was installed.");return;}
                 Engine.PrivateDirectory(directory);
-                string temporary=Path.Combine(directory,Guid.NewGuid().ToString("N")+".part"),target=Path.Combine(directory,"III85III-VPN-Setup.exe");
+                string temporary=Path.Combine(directory,Guid.NewGuid().ToString("N")+".part"),target=Path.Combine(directory,"ONYX-VPN-Setup.exe");
                 try{
                     using(var response=await GetResponse(update.Url)){
                         if(response.Content.Headers.ContentLength.HasValue&&response.Content.Headers.ContentLength.Value!=update.Size)throw new IOException("The update size does not match.");

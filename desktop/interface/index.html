@@ -1429,9 +1429,9 @@
       }
 
       /* Hide desktop-only window controls on Android */
-      #btn-minimize,
-      #btn-close,
-      #btn-mini {
+      .is-mobile #btn-minimize,
+      .is-mobile #btn-close,
+      .is-mobile #btn-mini {
         display: none !important;
       }
 
@@ -1517,6 +1517,14 @@
   </script>
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
   <link rel="stylesheet" href="tailwind.css">
+  <style>
+    #mobile-feedback { max-width: 92vw; white-space: normal; height: auto; padding: 4px 9px; }
+    #mobile-feedback[hidden], #btn-cmd[hidden] { display: none !important; }
+    @media (max-height: 450px) and (pointer: coarse) {
+      .status-cluster { top: 44px !important; }
+      .glass-drawer { max-height: calc(100vh - 70px) !important; overflow-y: auto; }
+    }
+  </style>
   <style>.desktop-tools { border: 1px solid #363843; border-radius: 8px; padding: 5px 8px; color: #e4e8f0; font-size: 11px; cursor: pointer; }</style>
 </head>
 
@@ -1861,6 +1869,7 @@
               <button id="btn-tg-proxy" type="button" class="mini-action-btn">Telegram Proxy</button>
 
               <button id="btn-repair-vpn" type="button" class="mini-action-btn">Repair VPN</button>
+              <button id="btn-update" type="button" class="mini-action-btn">Check for updates</button>
 
             </div>
 
@@ -2458,7 +2467,18 @@
 
 
 
+      let mobilePort = null;
       const sendHost = (payload) => {
+        if (mobilePort) {
+          if (payload.action === 'CONNECT' || payload.action === 'DISCONNECT') mobilePort.postMessage('POWER');
+          if (payload.action === 'REFRESH_CATALOGS') mobilePort.postMessage('LOAD_SERVERS');
+          if (payload.action === 'TEST_PING') mobilePort.postMessage('TEST_PING');
+          if (payload.action === 'SELECT_SERVER') {
+            const choice = servers.find(s => s.name === payload.server);
+            if (choice) mobilePort.postMessage('LOCATION:' + choice.code);
+          }
+          return;
+        }
         if (payload.action === 'APPLY_PRESET') payload.action = 'SAVE_APP_RULES';
         if (payload.action === 'TOGGLE_ANTIFILTER') { showToast('This option is unavailable'); return; }
         if (payload.action === 'CLEAN_DNS') { showToast('DNS cleanup is unavailable'); return; }
@@ -3153,8 +3173,54 @@
         }
       };
       window.OnyxVPN = { updateState: applyHostUpdate };
+      if (location.origin === 'https://appassets.androidplatform.net') {
+        window.addEventListener('message', (event) => {
+          if (event.data !== 'ONYX' || !event.ports[0] || mobilePort) return;
+          mobilePort = event.ports[0];
+          mobilePort.onmessage = ({data}) => {
+            const state = JSON.parse(data);
+            applyHostUpdate(state);
+            if (state.heading) stateHeadline.textContent = state.heading;
+            if (state.button) enterLabel.textContent = state.button;
+            btnEnter.disabled = !state.ready;
+            quickModeLabel.textContent = 'Settings';
+            const hint = document.getElementById('mobile-feedback');
+            hint.textContent = state.hint || '';
+            hint.hidden = !state.hint;
+          };
+          // Native sheets own Android permissions, accounts and per-app routing.
+          const actions = {
+            '[data-drawer="drawer-apps"]': 'APPS',
+            '[data-drawer="drawer-shield"]': 'SHIELD',
+            '[data-drawer="drawer-account"], #account-footer-line': 'ACCOUNT',
+            '#quick-mode-pill': 'SETTINGS'
+          };
+          for (const [selector, action] of Object.entries(actions)) {
+            document.querySelectorAll(selector).forEach(button => button.addEventListener('click', event => {
+              event.stopImmediatePropagation();
+              mobilePort.postMessage(action);
+            }, true));
+          }
+          for (const button of document.querySelectorAll('[data-drawer="drawer-servers"],#quick-server-pill')) {
+            button.addEventListener('click', () => { if (activeDrawer === 'drawer-servers') mobilePort.postMessage('LOAD_SERVERS'); });
+          }
+          window.OnyxVPN.closeDrawer = () => { if (!activeDrawer) return false; openDrawer(null); return true; };
+          document.querySelector('[data-drawer="drawer-account"]').textContent = 'Accounts';
+          document.querySelector('[data-drawer="drawer-shield"]').textContent = 'Shield';
+          document.getElementById('btn-cmd').hidden = true;
+          const hint = document.createElement('button');
+          hint.id = 'mobile-feedback';
+          hint.type = 'button';
+          hint.className = 'quick-pill';
+          hint.hidden = true;
+          hint.onclick = () => mobilePort.postMessage('DETAILS');
+          document.getElementById('account-footer-line').after(hint);
+          mobilePort.postMessage('READY');
+        });
+      }
       window.chrome?.webview?.addEventListener('message', (e) => applyHostUpdate(e.data));
       document.getElementById('onyx-add-account').addEventListener('click', () => sendHost({ action: 'ADD_ACCOUNT' }));
+      document.getElementById('btn-update').addEventListener('click', () => sendHost({ action: 'CHECK_UPDATE' }));
       document.getElementById('account-footer-line').addEventListener('click', () => openDrawer('drawer-account'));
       document.getElementById('account-footer-line').style.cursor = 'pointer';
       document.querySelector('.app-header')?.addEventListener('mousedown', (e) => {

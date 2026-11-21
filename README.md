@@ -6,13 +6,13 @@
 
 <p align="center">Obsidian tones. Brushed silver. Your connection at a glance.</p>
 
-ONYX is a VPN client for Windows and Android that uses Mozilla account sign-in. On Windows, a dark glass dashboard brings the connection state, server selection, and live traffic into one view. Compact mode keeps the essentials within reach. On Android, the native interface carries the ONYX emblem and dark palette.
+ONYX is a VPN client for Windows and Android that uses Mozilla account sign-in. The Windows dashboard brings connection status, server selection and traffic into one view. Android 1.1.26 uses the native ONYX interface. The Android source also includes the shared dashboard for the next signed update.
 
 ## Download ONYX
 
 | Platform | Download | Open |
 | --- | --- | --- |
-| Windows x64 | **[ONYX for Windows](https://github.com/III85III/ONYX/releases/latest/download/ONYX-Windows-x64.zip)** | Extract the ZIP, then run `onyx_vpn.exe`. Uses WebView2 Runtime. |
+| Windows x64 | **[ONYX for Windows](https://github.com/III85III/ONYX/releases/latest/download/ONYX-VPN-Setup.exe)** · [Portable ZIP](https://github.com/III85III/ONYX/releases/latest/download/ONYX-Windows-x64.zip) | Run Setup, then open **ONYX VPN** from your desktop. The dashboard uses Microsoft Edge WebView2 Runtime. |
 | Android 8.0+ | **[ONYX for Android](https://github.com/III85III/ONYX/releases/latest/download/ONYX-VPN.apk)** | Open the downloaded APK on your phone. |
 
 ## Connection controls
@@ -20,6 +20,8 @@ ONYX is a VPN client for Windows and Android that uses Mozilla account sign-in. 
 Choose a server, switch connection modes, and set which apps bypass the VPN on Windows. The dashboard displays connection status and traffic reported by the engine. Some controls in the Windows Shield panel are currently disabled.
 
 Mozilla controls account verification, availability, and quota. ONYX displays the quota reported for your account.
+
+Network ad blocking filters known advertising and tracking domains. YouTube video ads can use the same media hosts as the videos, so this filter does not reliably block in-video ads.
 
 ## Source and support
 
