@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "display_version": "1.1.20",
-  "changelog": "Built-in YouTube ad shield, network-level adblock, and anti-abuse account renewal.",
+  "display_version": "1.1.26",
+  "changelog": "Official ONYX Luxury Rebrand. Dark Obsidian & Brushed Platinum interface, high-speed engine, ad-block, and improved resilience.",
   "windows": {
-    "version": "1.1.20",
-    "url": "https://github.com/III85III/ONYX/releases/download/v1.1.20/ONYX-VPN-Setup.exe",
-    "size": 28245504,
-    "sha256": "a0ee6250dae042393580149ae5a68754e7715950601a76bf76509e3135ed995b"
+    "version": "1.1.26",
+    "url": "https://github.com/III85III/ONYX/releases/download/v1.1.26/ONYX-VPN-Setup.exe",
+    "size": 45159936,
+    "sha256": "2c44858862b6800e4045019b0fe15948f115361609bf02f2329145b0c8ae50ef"
   },
   "android": {
     "version": "1.1.26",
