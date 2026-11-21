@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "display_version": "1.1.26",
-  "changelog": "Official ONYX Luxury Rebrand. Dark Obsidian & Brushed Platinum interface, high-speed engine, ad-block, and improved resilience.",
+  "display_version": "1.1.27",
+  "changelog": "The Windows installer opens the ONYX dashboard and updates existing desktop shortcuts. Open ONYX when you are ready to switch. The VPN engine is unchanged.",
   "windows": {
-    "version": "1.1.26",
-    "url": "https://github.com/III85III/ONYX/releases/download/v1.1.26/ONYX-VPN-Setup.exe",
-    "size": 45159936,
-    "sha256": "2c44858862b6800e4045019b0fe15948f115361609bf02f2329145b0c8ae50ef"
+    "version": "1.1.27",
+    "url": "https://github.com/III85III/ONYX/releases/download/v1.1.27/ONYX-VPN-Setup.exe",
+    "size": 41534464,
+    "sha256": "60f6daeb07af8a12e1f2544c6bda5f7fb76b90aec8baa9b90928d56729912cad"
   },
   "android": {
     "version": "1.1.26",
