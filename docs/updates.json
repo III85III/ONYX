@@ -1,19 +1,19 @@
 {
   "schema": 1,
-  "display_version": "1.1.27",
-  "changelog": "The Windows installer opens the ONYX dashboard and updates existing desktop shortcuts. Open ONYX when you are ready to switch. The VPN engine is unchanged.",
+  "display_version": "1.1.28",
+  "changelog": "Improved startup when a local listener is occupied.",
   "windows": {
-    "version": "1.1.27",
-    "url": "https://github.com/III85III/ONYX/releases/download/v1.1.27/ONYX-VPN-Setup.exe",
+    "version": "1.1.28",
+    "url": "https://github.com/III85III/ONYX/releases/download/v1.1.28/ONYX-VPN-Setup.exe",
     "size": 41534464,
-    "sha256": "60f6daeb07af8a12e1f2544c6bda5f7fb76b90aec8baa9b90928d56729912cad"
+    "sha256": "e56c206355065e843f43c7927a7959ca7629e69cbf4638df60c6473bdff54d72"
   },
   "android": {
-    "version": "1.1.26",
-    "version_code": 23053,
-    "url": "https://github.com/III85III/ONYX/releases/download/v1.1.26/ONYX-VPN.apk",
-    "size": 53969217,
-    "sha256": "9261f3896f3cbde1748f7922b3eb3a3f29c41efe85092d13ae728d5311e48ce3",
-    "changelog": "Simpler Android home screen with an animated ONYX emblem and compact controls."
+    "version": "1.1.28",
+    "version_code": 23055,
+    "url": "https://github.com/III85III/ONYX/releases/download/v1.1.28/ONYX-VPN.apk",
+    "size": 55079422,
+    "sha256": "677d546d9618152333e2750a005485638c31e0903b766bf6c024f8704fd567ae",
+    "changelog": "Improved startup when a local listener is occupied."
   }
 }
