@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "display_version": "1.1.28",
-  "changelog": "Improved startup when a local listener is occupied.",
+  "display_version": "1.1.29",
+  "changelog": "Android update installation now opens the system installer.",
   "windows": {
     "version": "1.1.28",
     "url": "https://github.com/III85III/ONYX/releases/download/v1.1.28/ONYX-VPN-Setup.exe",
@@ -9,11 +9,11 @@
     "sha256": "e56c206355065e843f43c7927a7959ca7629e69cbf4638df60c6473bdff54d72"
   },
   "android": {
-    "version": "1.1.28",
-    "version_code": 23055,
-    "url": "https://github.com/III85III/ONYX/releases/download/v1.1.28/ONYX-VPN.apk",
+    "version": "1.1.29",
+    "version_code": 23056,
+    "url": "https://github.com/III85III/ONYX/releases/download/v1.1.29/ONYX-VPN.apk",
     "size": 55079422,
-    "sha256": "677d546d9618152333e2750a005485638c31e0903b766bf6c024f8704fd567ae",
-    "changelog": "Improved startup when a local listener is occupied."
+    "sha256": "ab2e6074ed702f5b54cfd7d1bcb92b1f42792cfec647ffd0999b9f0e960842a2",
+    "changelog": "After downloading, Android asks for installation permission when needed and opens the system installer."
   }
 }
