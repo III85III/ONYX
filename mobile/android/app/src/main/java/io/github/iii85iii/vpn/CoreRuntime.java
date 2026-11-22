@@ -28,9 +28,11 @@ final class CoreRuntime {
         return new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
     }
 
-    private static int freePort() throws IOException {
-        try (ServerSocket socket = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
-            return socket.getLocalPort();
+    static ServerSocket reservePort(InetAddress address, int preferred) throws IOException {
+        try {
+            return new ServerSocket(preferred, 1, address);
+        } catch (BindException occupied) {
+            return new ServerSocket(0, 1, address);
         }
     }
 
@@ -110,7 +112,7 @@ final class CoreRuntime {
         }
     }
 
-    static synchronized void writeDefaultConfigIfInvalid(File configFile, int dashboardPort, int localProxyPort) {
+    static synchronized void writeDefaultConfigIfInvalid(File configFile, int dashboardPort, int localProxyPort) throws IOException {
         JSONObject cfg = null;
         if (configFile.isFile()) {
             try {
@@ -118,7 +120,7 @@ final class CoreRuntime {
                 if (str != null && !str.trim().isEmpty()) {
                     cfg = new JSONObject(str);
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception error) { throw new IOException("Cannot read the VPN settings", error); }
         }
         if (cfg == null) cfg = new JSONObject();
 
@@ -174,10 +176,16 @@ final class CoreRuntime {
                 cfg.put("routing", routing);
             }
 
-            try (FileOutputStream fos = new FileOutputStream(configFile)) {
-                fos.write(cfg.toString(2).getBytes(StandardCharsets.UTF_8));
+            android.util.AtomicFile file = new android.util.AtomicFile(configFile);
+            FileOutputStream output = file.startWrite();
+            try {
+                output.write(cfg.toString(2).getBytes(StandardCharsets.UTF_8));
+                file.finishWrite(output);
+            } catch (Exception error) {
+                file.failWrite(output);
+                throw error;
             }
-        } catch (Exception ignored) {}
+        } catch (Exception error) { throw new IOException("Cannot save the VPN settings", error); }
     }
 
     static synchronized void ensure(Context context) throws Exception {
@@ -213,21 +221,13 @@ final class CoreRuntime {
 
         File configFile = new File(data, "config.json");
         int cfgPort = readDashboardPortFromConfig();
-        if (cfgPort > 0) {
-            port = cfgPort;
-        } else {
-            int targetDashboardPort = 10820;
-            try (ServerSocket s = new ServerSocket(targetDashboardPort, 1, InetAddress.getLoopbackAddress())) {}
-            catch (Exception occupied) { targetDashboardPort = freePort(); }
-            port = targetDashboardPort;
+        int preferred = cfgPort > 0 && cfgPort <= 65535 ? cfgPort : 10820;
+        try (ServerSocket dashboard = reservePort(InetAddress.getByName("127.0.0.1"), preferred);
+             ServerSocket proxy = reservePort(InetAddress.getByName("0.0.0.0"), 10810)) {
+            port = dashboard.getLocalPort();
+            proxyPort = proxy.getLocalPort();
+            writeDefaultConfigIfInvalid(configFile, port, proxyPort);
         }
-
-        int targetProxyPort = 10810;
-        try (ServerSocket s = new ServerSocket(targetProxyPort, 1, InetAddress.getLoopbackAddress())) {}
-        catch (Exception occupied) { targetProxyPort = freePort(); }
-        proxyPort = targetProxyPort;
-
-        writeDefaultConfigIfInvalid(configFile, port, proxyPort);
 
         // Remove old token file so we only accept the newly generated token from this run
         File tokenFile = new File(data, "local-api.token");

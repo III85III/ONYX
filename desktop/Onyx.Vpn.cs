@@ -393,6 +393,7 @@ namespace Onyx.Vpn {
 
         internal static bool TryProxyListener(string value, out IPEndPoint endpoint) {
             endpoint = null;
+            if (String.IsNullOrEmpty(value)) return false;
             int separator = value.LastIndexOf(':');
             IPAddress address;
             int port;
@@ -436,6 +437,22 @@ namespace Onyx.Vpn {
             http.Timeout = TimeSpan.FromSeconds(160);
         }
         internal Engine(string root, string dataDir, string endpoint, string token) : this(root, dataDir) { Endpoint = endpoint; Token = token; }
+
+        internal static IPEndPoint AvailableProxyListener(IPEndPoint preferred, int dashboardPort) {
+            int candidate = preferred.Port == dashboardPort ? 0 : preferred.Port;
+            while (true) {
+                var probe = new TcpListener(preferred.Address, candidate);
+                try {
+                    probe.ExclusiveAddressUse = true;
+                    probe.Start();
+                    var endpoint = (IPEndPoint)probe.LocalEndpoint;
+                    if (endpoint.Port != dashboardPort) return endpoint;
+                } catch (SocketException ex) {
+                    if (candidate == 0 || (ex.SocketErrorCode != SocketError.AddressAlreadyInUse && ex.SocketErrorCode != SocketError.AccessDenied)) throw;
+                } finally { probe.Stop(); }
+                candidate = 0;
+            }
+        }
 
         public static int FreePort() {
             var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
@@ -507,25 +524,14 @@ namespace Onyx.Vpn {
             var cfg = File.Exists(configPath) ? Json.Decode(File.ReadAllText(configPath)) : new Dictionary<string, object>();
             int port = FreePort();
             var dashboard = Json.Child(cfg, "dashboard"); dashboard["listen"] = "127.0.0.1:" + port; dashboard["enabled"] = true; cfg["dashboard"] = dashboard;
-            int prxPort = 10810;
-            TcpListener l = null;
-            try {
-                l = new TcpListener(IPAddress.Loopback, 10810);
-                l.Start();
-            } catch {
-                prxPort = FreePort();
-            } finally {
-                if (l != null) { try { l.Stop(); } catch {} }
-            }
-            ProxyPort = prxPort;
             var proxy = Json.Child(cfg, "proxy");
-            string proxyListen = Json.Str(proxy, "listen");
             IPEndPoint savedListener;
-            if (TryProxyListener(proxyListen, out savedListener)) {
-                ProxyPort = savedListener.Port;
-                ProxyAddress = savedListener.Address.ToString();
-            }
-            else proxy["listen"] = "127.0.0.1:" + ProxyPort;
+            if (!TryProxyListener(Json.Str(proxy, "listen"), out savedListener))
+                savedListener = new IPEndPoint(IPAddress.Loopback, 10810);
+            var selected = AvailableProxyListener(savedListener, port);
+            ProxyAddress = selected.Address.ToString();
+            ProxyPort = selected.Port;
+            proxy["listen"] = selected.ToString();
             cfg["proxy"] = proxy;
             if (!cfg.ContainsKey("system_proxy")) cfg["system_proxy"] = new { mode = "tun" };
             if (!cfg.ContainsKey("routing")) cfg["routing"] = new { enabled = false };
