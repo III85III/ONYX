@@ -21,7 +21,7 @@ public final class UpdateActivity extends Activity {
     @Override public void onBackPressed(){ finish(); }
     private Button back;
     private TextView status;private ProgressBar progress;private Button action;
-    private Info available;private File downloaded;private boolean busy;
+    private Info available;private File downloaded;private boolean busy;private boolean awaitingInstallPermission;
     private static final java.util.concurrent.atomic.AtomicBoolean downloading=new java.util.concurrent.atomic.AtomicBoolean();
     static final class Info {String version,url,hash,changelog;long size,code;JSONObject announcement;}
     @Override public void onCreate(Bundle state){
@@ -138,7 +138,7 @@ public final class UpdateActivity extends Activity {
     private void showSignatureHelp(){
         new AlertDialog.Builder(this)
             .setTitle("راهنمای رفع خطای امضا یا عدم نصب")
-            .setMessage("در صورت مشاهده «خطای امضا (Signature Error)» یا «برنامه نصب نشد»:\n\nبه دلیل ارتقای کلید امنیتی اندروید، لطفاً ابتدا نسخه فعلی فیلترشکن را از گوشی خود حذف (Uninstall) کرده و سپس نسخه جدید را با دکمه زیر دانلود و نصب کنید (تنظیمات محفوظ می‌ماند).")
+            .setMessage("اگر نصب به دلیل تفاوت امضا رد شد، نسخهٔ فعلی را حذف نکنید مگر بعد از پشتیبان‌گیری از حساب‌ها و تنظیمات. حذف برنامه ممکن است داده‌های محلی را پاک کند.")
             .setPositiveButton("🌐 دانلود مستقیم با مرورگر",(d,w)->{
                 if(available!=null&&available.url!=null){
                     try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(available.url)));}catch(Exception ignored){}
@@ -149,42 +149,40 @@ public final class UpdateActivity extends Activity {
     }
 
     private void launchInstall(){
-        try {
-            startService(new Intent(this, TunnelService.class).setAction(TunnelService.STOP));
-        } catch(Exception ignored){}
-
+        if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.O&&!getPackageManager().canRequestPackageInstalls()){
+            status.setText("برای نصب آپدیت، اجازهٔ نصب از ONYX را در تنظیمات گوشی فعال کنید.");
+            try{
+                Intent permission=new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+getPackageName()));
+                awaitingInstallPermission=true;
+                startActivity(permission);
+            }catch(Exception error){status.setText("تنظیمات اجازهٔ نصب باز نشد. با مرورگر دانلود کنید.");}
+            return;
+        }
         try {
             Uri contentUri = Uri.parse("content://" + getPackageName() + ".updateprovider/update.apk");
-            Intent intent = new Intent(Intent.ACTION_VIEW);
+            Intent intent = new Intent(Intent.ACTION_INSTALL_PACKAGE);
             intent.setDataAndType(contentUri, "application/vnd.android.package-archive");
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            intent.setClipData(ClipData.newRawUri("ONYX update",contentUri));
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             List<ResolveInfo> resInfoList = getPackageManager().queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY);
             for (ResolveInfo resolveInfo : resInfoList) {
                 try{grantUriPermission(resolveInfo.activityInfo.packageName, contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);}catch(Exception ignored){}
             }
             try{grantUriPermission("com.google.android.packageinstaller", contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);}catch(Exception ignored){}
             try{grantUriPermission("com.android.packageinstaller", contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);}catch(Exception ignored){}
+            status.setText("فایل آماده است. نصب را در پنجرهٔ اندروید تأیید کنید.");
             startActivity(intent);
         } catch(Exception e) {
-            try {
-                if(available!=null&&available.url!=null){
-                    startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(available.url)));
-                } else {
-                    showSignatureHelp();
-                }
-            } catch(Exception fallbackError) {
-                showSignatureHelp();
-            }
+            status.setText("نصاب اندروید باز نشد. از دکمهٔ دانلود با مرورگر استفاده کنید.");
         }
     }
 
-    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == 999) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && getPackageManager().canRequestPackageInstalls()) {
-                launchInstall();
-            }
-        }
+    @Override protected void onResume(){
+        super.onResume();
+        if(!awaitingInstallPermission)return;
+        awaitingInstallPermission=false;
+        if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.O&&getPackageManager().canRequestPackageInstalls())launchInstall();
+        else status.setText("اجازهٔ نصب داده نشد. برای نصب، دوباره روی «نصب آپدیت» بزنید.");
     }
 
     public static final class Provider extends ContentProvider {
