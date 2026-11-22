@@ -8,7 +8,7 @@ using System.Windows.Forms;
 
 [assembly: AssemblyProduct("ONYX VPN")]
 [assembly: AssemblyTitle("ONYX VPN Setup")]
-[assembly: AssemblyFileVersion("1.1.27.0")]
+[assembly: AssemblyFileVersion("1.1.28.0")]
 
 internal static class Setup {
     static readonly string Programs = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs");

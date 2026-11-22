@@ -12,7 +12,21 @@ try{$digest=[BitConverter]::ToString([Security.Cryptography.SHA256]::Create().Co
 $dir=Join-Path $root 'Versions'
 $exe=$type.GetMethod('Install',$methods).Invoke($null,[string[]]@($dir))
 if($exe -ne $type.GetMethod('Install',$methods).Invoke($null,[string[]]@($dir))){throw 'Repeat installation is not stable'}
-if([Reflection.AssemblyName]::GetAssemblyName($exe).Version.ToString(3) -ne '1.1.27'){throw 'Wrong installed version'}
+$installed=[Reflection.AssemblyName]::GetAssemblyName($exe).Version
+if($installed.ToString() -ne [Diagnostics.FileVersionInfo]::GetVersionInfo($setup.Location).FileVersion){throw 'Wrong installed version'}
+$app=[Reflection.Assembly]::LoadFile($exe)
+$pick=$app.GetType('Onyx.Vpn.Engine',$true).GetMethod('AvailableProxyListener',$methods)
+$busy=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0)
+$busy.Start()
+try {
+    $dashboard=$busy.LocalEndpoint.Port
+    $choice=$pick.Invoke($null,@($busy.LocalEndpoint,$dashboard))
+    if($choice.Port -eq $dashboard -or !$choice.Address.Equals([Net.IPAddress]::Loopback)){throw 'Dashboard port collision'}
+    $candidate=$pick.Invoke($null,@($busy.LocalEndpoint,$choice.Port))
+    if($candidate.Port -in @($dashboard,$choice.Port)){throw 'Occupied proxy port selected'}
+    $same=$pick.Invoke($null,@($candidate,$dashboard))
+    if(!$same.Equals($candidate)){throw 'Available custom proxy port lost'}
+}finally{$busy.Stop()}
 $links=Join-Path $root 'Desktop'
 New-Item -Type Directory -Path $links | Out-Null
 $shell=New-Object -ComObject WScript.Shell

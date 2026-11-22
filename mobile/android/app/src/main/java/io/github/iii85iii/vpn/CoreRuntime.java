@@ -213,7 +213,13 @@ final class CoreRuntime {
                     return; // Running and healthy!
                 } catch (Exception ignored) {}
             }
-            // Engine is marked running but unreachable; stop and restart fresh
+            // A slow dashboard response must not tear down a working tunnel.
+            if (TunnelService.active) {
+                int savedPort = readDashboardPortFromConfig();
+                if (savedPort > 0 && savedPort <= 65535) port = savedPort;
+                request("GET", "/api/status", null, 3000);
+                return;
+            }
             try { Mobile.stop(); } catch (Exception ignored) {}
             Thread.sleep(250);
         }

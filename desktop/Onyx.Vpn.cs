@@ -25,8 +25,8 @@ using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("ONYX // VPN")]
 [assembly: System.Reflection.AssemblyProduct("ONYX // VPN")]
-[assembly: System.Reflection.AssemblyVersion("1.1.27.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.1.27.0")]
+[assembly: System.Reflection.AssemblyVersion("1.1.28.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.1.28.0")]
 
 [assembly: System.Reflection.AssemblyDescription("ONYX // VPN desktop client")]
 [assembly: System.Reflection.AssemblyCompany("III85III")]
