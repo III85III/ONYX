@@ -89,13 +89,7 @@ public final class UpdateActivity extends Activity {
     private File prepareUpdate(File partial,Info update)throws Exception{
         verifyBytes(partial,update);
         File ready=new File(getCacheDir(),"III85III-VPN.apk");
-        if(ready.exists()&&!ready.delete()){}
-        if(!partial.renameTo(ready)){
-            try(InputStream in=new FileInputStream(partial);OutputStream out=new FileOutputStream(ready)){
-                byte[] b=new byte[65536];int l;while((l=in.read(b))!=-1)out.write(b,0,l);
-            }
-            partial.delete();
-        }
+        android.system.Os.rename(partial.getAbsolutePath(),ready.getAbsolutePath());
         return ready;
     }
     private static final class UpdateFailure extends IOException {
@@ -120,19 +114,38 @@ public final class UpdateActivity extends Activity {
         CoreRuntime.IO.execute(()->{
             try {
                 verifyBytes(downloaded, available);
+                verifyInstallCompatibility(downloaded);
                 runOnUiThread(()->{
                     finishWork();
                     launchInstall();
                 });
             } catch(Exception error){
                 runOnUiThread(()->{
-                    status.setText("خطا در تطابق فایل دانلود شده. لطفاً از دکمه «دانلود مستقیم فایل نصبی با مرورگر» استفاده کنید.");
+                    status.setText(error instanceof UpdateFailure ? error.getMessage() :
+                        "فایل نصب قابل بررسی نیست. دوباره تلاش کنید.");
                     action.setText("دانلود مجدد");
                     downloaded=null;
                     finishWork();
                 });
             }
         });
+    }
+
+    @SuppressWarnings("deprecation")
+    private void verifyInstallCompatibility(File apk)throws Exception {
+        PackageManager packages = getPackageManager();
+        int flags = PackageManager.GET_SIGNATURES;
+        PackageInfo candidate = packages.getPackageArchiveInfo(apk.getAbsolutePath(),flags);
+        PackageInfo installed = packages.getPackageInfo(getPackageName(),flags);
+        if(candidate==null || !getPackageName().equals(candidate.packageName))
+            throw new UpdateFailure("PACKAGE","این فایل نصبی برای ONYX نیست.");
+        long candidateVersion = Build.VERSION.SDK_INT >= 28 ? candidate.getLongVersionCode() : candidate.versionCode;
+        long installedVersion = Build.VERSION.SDK_INT >= 28 ? installed.getLongVersionCode() : installed.versionCode;
+        if(candidateVersion <= installedVersion)
+            throw new UpdateFailure("VERSION","این فایل از نسخهٔ نصب‌شده جدیدتر نیست.");
+        if(candidate.signatures==null || installed.signatures==null ||
+            !new HashSet<>(Arrays.asList(candidate.signatures)).equals(new HashSet<>(Arrays.asList(installed.signatures))))
+            throw new UpdateFailure("SIGNATURE","امضای این فایل با برنامهٔ نصب‌شده فرق دارد. برای حفظ حساب‌ها، برنامه را حذف نکنید.");
     }
 
     private void showSignatureHelp(){

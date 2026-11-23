@@ -924,6 +924,51 @@
 
 
 
+    .easy-connect-btn {
+      margin-top: 8px;
+      height: 33px;
+      padding: 0 20px;
+      border-radius: 9999px;
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.16) 0%, rgba(5, 150, 105, 0.24) 100%);
+      border: 1px solid rgba(52, 211, 153, 0.42);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35), 0 0 12px rgba(52, 211, 153, 0.15);
+      color: #a7f3d0;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      user-select: none;
+      -webkit-user-select: none;
+      pointer-events: auto;
+    }
+    .easy-connect-btn:hover {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.28) 0%, rgba(5, 150, 105, 0.38) 100%);
+      border-color: rgba(52, 211, 153, 0.65);
+      box-shadow: 0 4px 16px rgba(16, 185, 129, 0.25), 0 0 16px rgba(52, 211, 153, 0.25);
+      transform: translateY(-1px);
+      color: #ffffff;
+    }
+    .easy-connect-btn:active {
+      transform: translateY(1px) scale(0.98);
+    }
+    .easy-connect-btn.is-connecting {
+      border-color: rgba(245, 158, 11, 0.55);
+      background: rgba(245, 158, 11, 0.12);
+      color: #fde68a;
+      pointer-events: none;
+    }
+    .easy-connect-btn.is-connected {
+      border-color: rgba(52, 211, 153, 0.55);
+      background: rgba(16, 185, 129, 0.15);
+      color: #6ee7b7;
+    }
+
     .quick-pills-row {
 
       margin-top: 9px;
@@ -1850,7 +1895,13 @@
 
         <div class="drawer-scroll">
 
-          <button id="onyx-add-account" type="button" class="mini-action-btn">Add account</button><div id="account-list" class="flex flex-col gap-1"></div>
+          <div style="display:flex; margin-bottom:12px;">
+            <button id="onyx-add-account" type="button" class="mini-action-btn" style="flex:1; height:34px; font-size:11.5px; border-radius:10px; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;">
+              <span>+</span>
+              <span>Add Mozilla Account</span>
+            </button>
+          </div>
+          <div id="account-list" class="flex flex-col gap-1"></div>
 
           <div class="mt-2 p-2.5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col gap-2">
 
@@ -1907,7 +1958,13 @@
 
 
 
-        <div class="quick-pills-row">
+        
+        <button id="btn-easy-connect" class="easy-connect-btn" type="button">
+          <span class="easy-icon">⚡</span>
+          <span class="easy-text">Easy Connect</span>
+        </button>
+
+<div class="quick-pills-row">
 
           <button id="quick-server-pill" class="quick-pill" type="button">
 
@@ -1923,7 +1980,9 @@
 
           </button>
 
-        </div>
+          </div>
+
+
 
 
 
@@ -1935,7 +1994,7 @@
 
           <button type="button" class="drawer-tab-btn" data-drawer="drawer-shield">Shield & Routing</button>
 
-          <button type="button" class="drawer-tab-btn" data-drawer="drawer-account">Account & Logs</button>
+          <button type="button" class="drawer-tab-btn" data-drawer="drawer-account">Account</button>
 
         </div>
 
@@ -2081,7 +2140,7 @@
 
         this.height = window.innerHeight;
 
-        this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+        this.dpr = 1;
 
         this.currentBg = [...THEMES[0].bgDeep];
 
@@ -2130,6 +2189,10 @@
         this.width = Math.max(120, window.innerWidth);
 
         this.height = Math.max(40, window.innerHeight);
+
+        // The wallpaper is decorative. Keep its bitmap bounded on large displays.
+        this.dpr = Math.min(window.devicePixelRatio || 1, 1.5,
+          Math.sqrt(1_500_000 / (this.width * this.height)));
 
         this.canvas.width = Math.floor(this.width * this.dpr);
 
@@ -2471,6 +2534,7 @@
       const sendHost = (payload) => {
         if (mobilePort) {
           if (payload.action === 'CONNECT' || payload.action === 'DISCONNECT') mobilePort.postMessage('POWER');
+          if (payload.action === 'EASY_CONNECT') mobilePort.postMessage('EASY_CONNECT');
           if (payload.action === 'REFRESH_CATALOGS') mobilePort.postMessage('LOAD_SERVERS');
           if (payload.action === 'TEST_PING') mobilePort.postMessage('TEST_PING');
           if (payload.action === 'SELECT_SERVER') {
@@ -3142,6 +3206,7 @@
         }
         linkHealthReadout.textContent = d.ping && d.ping !== '-- ms' ? `Ping ${d.ping}` : 'Ping unavailable';
         dlReadout.textContent = `↓ ${d.download}`; ulReadout.textContent = `↑ ${d.upload}`;
+        wakeAnimation(15);
         document.getElementById('mini-speed-text').textContent = `↓ ${d.download}`;
         dlTotalEl.textContent = `DL Total: ${d.totalDl}`; ulTotalEl.textContent = `UL Total: ${d.totalUl}`;
         document.getElementById('exit-ip-label').textContent = d.exitIp || '—';
@@ -3170,6 +3235,26 @@
           accountsSnapshot = JSON.stringify(d.accounts);
           accounts.splice(0, accounts.length, ...d.accounts);
           renderAccounts();
+        }
+        const easyBtn = document.getElementById('btn-easy-connect');
+        if (easyBtn) {
+          if (d.state === 'connected') {
+            easyBtn.classList.add('is-connected');
+            easyBtn.classList.remove('is-connecting');
+            easyBtn.querySelector('.easy-text').textContent = 'Disconnect';
+          } else if (d.state === 'connecting') {
+            easyBtn.classList.add('is-connecting');
+            easyBtn.classList.remove('is-connected');
+            easyBtn.querySelector('.easy-text').textContent = 'Connecting...';
+          } else {
+            easyBtn.classList.remove('is-connected', 'is-connecting');
+            easyBtn.querySelector('.easy-text').textContent = 'Easy Connect';
+          }
+        }
+        if (d.downRateBytes !== undefined && typeof drawSpark === 'function') {
+          dlHist.push(d.downRateBytes); dlHist.shift();
+          ulHist.push(d.upRateBytes || 0); ulHist.shift();
+          drawSpark();
         }
       };
       window.OnyxVPN = { updateState: applyHostUpdate };
@@ -3220,31 +3305,78 @@
       }
       window.chrome?.webview?.addEventListener('message', (e) => applyHostUpdate(e.data));
       document.getElementById('onyx-add-account').addEventListener('click', () => sendHost({ action: 'ADD_ACCOUNT' }));
+      document.getElementById('btn-easy-connect')?.addEventListener('click', () => {
+        if (connState === 'active') {
+          sendHost({ action: 'DISCONNECT' });
+        } else {
+          showToast('EASY CONNECT...');
+          sendHost({ action: 'EASY_CONNECT' });
+        }
+      });
       document.getElementById('btn-update').addEventListener('click', () => sendHost({ action: 'CHECK_UPDATE' }));
       document.getElementById('account-footer-line').addEventListener('click', () => openDrawer('drawer-account'));
       document.getElementById('account-footer-line').style.cursor = 'pointer';
       document.querySelector('.app-header')?.addEventListener('mousedown', (e) => {
         if (e.button === 0 && !e.target.closest('button')) sendHost({ action: 'DRAG_WINDOW' });
       });
-let last = performance.now(), lastDraw = 0;
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+      let frame = 0;
+      let timer = 0;
+      let lastDraw = 0;
+      let idleFramesLeft = 25;
 
-      const loop = (now) => {
+      function wakeAnimation(count = 20) {
+        idleFramesLeft = Math.max(idleFramesLeft, count);
+        if (!frame && !document.hidden) {
+          lastDraw = performance.now();
+          frame = requestAnimationFrame(draw);
+        }
+      }
 
-        requestAnimationFrame(loop);
-
-        if (document.hidden && now - lastDraw < 90) return;
-
+      function draw(now) {
+        frame = 0;
+        if (document.hidden) return;
+        const dt = lastDraw ? Math.min(0.08, (now - lastDraw) / 1000) : 0;
         lastDraw = now;
-
-        const dt = Math.min(0.08, (now - last) / 1000); last = now;
-
-        
-
         wallpaper.render(now * 0.001, dt);
 
-      };
+        if (connState === 'connecting') {
+          const interval = reducedMotion.matches ? 150 : 33;
+          timer = window.setTimeout(() => {
+            timer = 0;
+            if (!document.hidden && !frame) frame = requestAnimationFrame(draw);
+          }, interval);
+        } else if (idleFramesLeft > 0) {
+          idleFramesLeft--;
+          const interval = reducedMotion.matches ? 150 : 45;
+          timer = window.setTimeout(() => {
+            timer = 0;
+            if (!document.hidden && !frame) frame = requestAnimationFrame(draw);
+          }, interval);
+        }
+      }
 
-      requestAnimationFrame(loop);
+      function syncAnimation() {
+        clearTimeout(timer);
+        timer = 0;
+        cancelAnimationFrame(frame);
+        frame = 0;
+        if (!document.hidden) wakeAnimation(25);
+      }
+
+      window.addEventListener('mousemove', (e) => {
+        wallpaper.mousePos.x = e.clientX;
+        wallpaper.mousePos.y = e.clientY;
+        wakeAnimation(6);
+      }, { passive: true });
+
+      window.addEventListener('resize', () => {
+        wallpaper.resize();
+        wakeAnimation(15);
+      }, { passive: true });
+
+      document.addEventListener('visibilitychange', syncAnimation);
+      wakeAnimation(35);
 
     });
 

@@ -84,7 +84,9 @@ public final class MainActivity extends Activity {
         // Allow screenshots and screen recordings as requested
         // getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE,WindowManager.LayoutParams.FLAG_SECURE);
         try{body=Typeface.createFromAsset(getAssets(),"fonts/Lato-Regular.ttf");}catch(Exception ignored){}
-        LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(BG);root.setPadding(dp(18),dp(12),dp(18),0);
+        LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(18),dp(12),dp(18),0);
+        root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+            new int[]{Color.rgb(20,23,31), BG, Color.rgb(12,14,20)}));
         LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
         // آیکون لوگوی سه‌بعدی لوکس در بالای هدر اپلیکیشن
         android.widget.ImageView brandIcon = new android.widget.ImageView(this);
@@ -148,6 +150,7 @@ public final class MainActivity extends Activity {
                     }
                     switch(action){
                         case "POWER": if(ready && power!=null && power.isEnabled())toggleConnection();break;
+                        case "EASY_CONNECT": if(ready)performEasyConnect();break;
                         case "SERVERS": showPage(1);break;
                         case "LOAD_SERVERS": loadDashboardServers();break;
                         case "TEST_PING":
@@ -503,6 +506,111 @@ public final class MainActivity extends Activity {
             label.animate().alpha(1f).setDuration(180).start();
         }
     }
+    private void performEasyConnect() {
+        if (!ready) {
+            feedback.setText("Starting local engine\u2026");
+            CoreRuntime.IO.execute(() -> {
+                try {
+                    CoreRuntime.ensure(this);
+                    main.post(() -> {
+                        if (isDestroyed()) return;
+                        ready = true;
+                        feedback.setText("");
+                        performEasyConnect();
+                    });
+                } catch (Exception err) {
+                    main.post(() -> {
+                        if (!isDestroyed()) showError("Local engine: " + (err.getMessage() != null ? err.getMessage() : "start failed"));
+                    });
+                }
+            });
+            return;
+        }
+
+        if (TunnelService.lifecycle.canCancel()) {
+            startService(new Intent(this, TunnelService.class).setAction(TunnelService.STOP));
+            statusText.setText("Disconnecting\u2026");
+            power.setText("Disconnecting\u2026");
+            main.postDelayed(this::poll, 100);
+            return;
+        }
+        if (TunnelService.lifecycle.phase() == VpnLifecycle.Phase.STOPPING) {
+            feedback.setText("Finishing previous connection. Try again in a moment.");
+            return;
+        }
+
+        feedback.setText("Easy Connect\u2026");
+        CoreRuntime.IO.execute(() -> {
+            try {
+                JSONObject reply = CoreRuntime.request("GET", "/api/accounts", null, 5000);
+                JSONArray rows = reply != null ? reply.optJSONArray("accounts") : null;
+                boolean hasReady = false;
+                String readyId = "";
+                if (rows != null && rows.length() > 0) {
+                    for (int i = 0; i < rows.length(); i++) {
+                        JSONObject acc = rows.optJSONObject(i);
+                        if (acc != null) {
+                            String st = acc.optString("status", "");
+                            boolean en = acc.optBoolean("enabled", true);
+                            if (en && "ready".equals(st)) {
+                                hasReady = true;
+                                readyId = acc.optString("id", "");
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (hasReady) {
+                    if (!readyId.isEmpty()) {
+                        try {
+                            CoreRuntime.request("POST", "/api/accounts/" + readyId + "/activate", null, 5000);
+                        } catch (Exception ignored) {}
+                    }
+                    main.post(() -> {
+                        if (isDestroyed()) return;
+                        explainConnection();
+                    });
+                } else {
+                    main.post(() -> {
+                        if (isDestroyed()) return;
+                        feedback.setText("Preparing account\u2026");
+                    });
+                    if (rows != null) {
+                        for (int i = 0; i < rows.length(); i++) {
+                            JSONObject acc = rows.optJSONObject(i);
+                            if (acc != null) {
+                                String id = acc.optString("id", "");
+                                if (!id.isEmpty()) {
+                                    try { CoreRuntime.request("DELETE", "/api/accounts/" + id, null, 3000); } catch (Exception ignored) {}
+                                }
+                            }
+                        }
+                    }
+                    AccountSetup.addFreshAccount(MainActivity.this, new AccountSetup.ProvisionCallback() {
+                        @Override public void onSuccess() {
+                            main.post(() -> {
+                                if (isDestroyed()) return;
+                                explainConnection();
+                            });
+                        }
+                        @Override public void onFailure(String error) {
+                            main.post(() -> {
+                                if (isDestroyed()) return;
+                                feedback.setText(error != null ? error : "Account setup failed");
+                            });
+                        }
+                    });
+                }
+            } catch (Exception e) {
+                main.post(() -> {
+                    if (isDestroyed()) return;
+                    feedback.setText("Account check error");
+                });
+            }
+        });
+    }
+
     private void toggleConnection(){
         if(!ready){
             feedback.setText("Starting local engine\u2026");
@@ -560,19 +668,15 @@ public final class MainActivity extends Activity {
                             }
                         }
                     }
-                    if (selectedNeedsSignIn || (!hasUsable && rows.length() > 0)) {
+                    if (selectedNeedsSignIn) {
                         checkingAccount = false;
                         updateHome();
-                        if (selectedNeedsSignIn) openVerificationSignIn();
-                        else {
-                            showPage(3);
-                            feedback.setText("Check your saved Mozilla account before connecting.");
-                        }
+                        openVerificationSignIn();
                         return;
                     }
-                    if(rows.length()==0){
-                        feedback.setText("\u062f\u0631 \u062d\u0627\u0644 \u062a\u062e\u0635\u06cc\u0635 \u0627\u06a9\u0627\u0646\u062a \u062e\u0648\u062f\u06a9\u0627\u0631\u2026");
-                        AccountSetup.ensureAccount(this,new AccountSetup.ProvisionCallback(){
+                    if (!hasUsable) {
+                        feedback.setText("Assigning account\u2026");
+                        AccountSetup.addFreshAccount(this, new AccountSetup.ProvisionCallback(){
                             @Override public void onSuccess(){
                                 main.post(()->{
                                     if(isDestroyed()||attempt!=connectAttempt)return;
@@ -881,20 +985,21 @@ public final class MainActivity extends Activity {
     }
     private void accounts(){
         heading("مدیریت اکانت‌ها","پروفایل‌های فعال و حجم مصرفی ۵۰ گیگابایت ماهانه");
-        Button addAccBtn=button("⚡ دریافت اکانت جدید (از مخزن)",()->{
+        Button addAccBtn=button("دریافت حساب رایگان",()->{
             android.content.SharedPreferences prefs = getSharedPreferences("vpn_prefs", MODE_PRIVATE);
-            long lastAdd = prefs.getLong("last_account_add_time", 0);
+            long lastAdd = prefs.getLong("last_free_account_claim", 0);
             long now = System.currentTimeMillis();
-            if (now - lastAdd < 30000) {
-                long waitSec = (30000 - (now - lastAdd)) / 1000;
-                Toast.makeText(this, "لطفاً " + waitSec + " ثانیه صبر کنید.", Toast.LENGTH_SHORT).show();
+            long wait = java.util.concurrent.TimeUnit.DAYS.toMillis(10) - (now - lastAdd);
+            if (wait > 0) {
+                long hours = (long)Math.ceil(wait / 3600000.0);
+                Toast.makeText(this, "درخواست بعدی تا " + hours + " ساعت دیگر فعال می‌شود.", Toast.LENGTH_SHORT).show();
                 return;
             }
-            prefs.edit().putLong("last_account_add_time", now).apply();
             Toast.makeText(this,"در حال دریافت و فعال‌سازی اکانت ۵۰ گیگابایت...",Toast.LENGTH_SHORT).show();
             feedback.setText("در حال دریافت اکانت ۵۰ گیگابایت...");
             AccountSetup.addFreshAccount(this,new AccountSetup.ProvisionCallback(){
                 @Override public void onSuccess(){
+                    prefs.edit().putLong("last_free_account_claim", System.currentTimeMillis()).apply();
                     main.post(()->{
                         Toast.makeText(MainActivity.this,"✅ اکانت ۵۰ گیگابایت جدید با موفقیت اضافه شد",Toast.LENGTH_LONG).show();
                         feedback.setText("");

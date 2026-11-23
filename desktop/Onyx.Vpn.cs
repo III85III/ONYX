@@ -25,11 +25,11 @@ using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("ONYX // VPN")]
 [assembly: System.Reflection.AssemblyProduct("ONYX // VPN")]
-[assembly: System.Reflection.AssemblyVersion("1.1.28.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.1.28.0")]
+[assembly: System.Reflection.AssemblyVersion("1.1.33.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.1.33.0")]
 
 [assembly: System.Reflection.AssemblyDescription("ONYX // VPN desktop client")]
-[assembly: System.Reflection.AssemblyCompany("III85III")]
+[assembly: System.Reflection.AssemblyCompany("ONYX")]
 
 
 
@@ -609,7 +609,13 @@ namespace Onyx.Vpn {
         }
         public async Task InstallTun() {
             AllowTunServiceRead();
-            using (var installer = Process.Start(new ProcessStartInfo(File.Exists(Path.Combine(Directory.Exists(Path.Combine(Root, "core")) ? Path.Combine(Root, "core") : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "III85III VPN", "core"), "iii85iii-tun.exe")) ? Path.Combine(Directory.Exists(Path.Combine(Root, "core")) ? Path.Combine(Root, "core") : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "III85III VPN", "core"), "iii85iii-tun.exe") : Path.Combine(Directory.Exists(Path.Combine(Root, "core")) ? Path.Combine(Root, "core") : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "III85III VPN", "core"), "firefox-vpn-tun.exe"), "install") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true })) {
+            string coreDirectory = Path.Combine(Root, "core");
+            if (!Directory.Exists(coreDirectory))
+                coreDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "III85III VPN", "core");
+            string helper = new[] { "onyx-tun.exe", "iii85iii-tun.exe", "firefox-vpn-tun.exe" }
+                .Select(name => Path.Combine(coreDirectory, name)).FirstOrDefault(File.Exists);
+            if (helper == null) throw new IOException("The ONYX tunnel helper is missing. Reinstall ONYX VPN.");
+            using (var installer = Process.Start(new ProcessStartInfo(helper, "install") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true })) {
                 Task<string> output = installer.StandardOutput.ReadToEndAsync(), error = installer.StandardError.ReadToEndAsync();
                 await Task.Run(delegate { installer.WaitForExit(); });
                 await output; var detail = await error;
@@ -1799,6 +1805,8 @@ namespace Onyx.Vpn {
                     if(requiredUpdateStatus!=null)requiredUpdateStatus.Text=text;
                 },path=>{
                     Process.Start(new ProcessStartInfo(path){UseShellExecute=true,WorkingDirectory=Path.GetTempPath()});
+                    allowClose = true;
+                    Application.Exit();
                 },manual);
             }finally{
                 updating=false;
@@ -1864,7 +1872,7 @@ namespace Onyx.Vpn {
         // Account View Controls
         readonly ListView accountsList = new ListView();
         readonly LuxuryButton loginBtn = new LuxuryButton { Text = "Add an account", Variant = ButtonVariant.Primary };
-        readonly LuxuryButton renewAccountBtn = new LuxuryButton { Text = "Renew from storage", Variant = ButtonVariant.Secondary };
+        readonly LuxuryButton renewAccountBtn = new LuxuryButton { Text = "Get free account", Variant = ButtonVariant.Secondary };
         readonly LuxuryButton refreshQuotaBtn = new LuxuryButton { Text = "Check balance", Variant = ButtonVariant.Secondary };
         readonly LuxuryButton useAccountBtn = new LuxuryButton { Text = "Use account", Variant = ButtonVariant.Secondary };
         readonly LuxuryButton removeAccountBtn = new LuxuryButton { Text = "Remove account", Variant = ButtonVariant.Danger };
@@ -3440,9 +3448,17 @@ namespace Onyx.Vpn {
             }
             string phase = Json.Str(Json.Child(lastStatus, "state"), "phase");
             var accounts=Json.Child(lastStatus,"accounts");
-            if(phase=="off"&&Json.Get(accounts,"total")!=null&&Json.Num(accounts,"total")==0&&accountsList.Items.Count==0&&!requiredUpdate){
-                await AutoAssignPoolAccount();
-                if (accountsList.Items.Count == 0) { SwitchPage(3); loginBtn.PerformClick(); return; }
+            if(phase=="off"&&!requiredUpdate){
+                bool hasReadyAccount = false;
+                foreach(var existing in Json.Rows(accounts, "accounts")) {
+                    string st = Json.Str(existing, "status");
+                    bool en = !(Json.Get(existing, "enabled") is bool && !Json.Bool(existing, "enabled"));
+                    if (en && st == "ready") { hasReadyAccount = true; break; }
+                }
+                if (!hasReadyAccount) {
+                    await AutoAssignPoolAccount();
+                    await Poll();
+                }
             }
             dial.State=DialState.Connecting;statusPill.State=DialState.Connecting;
             statusPill.StatusText=phase=="off"?"CONNECTING\u2026":"DISCONNECTING\u2026";
@@ -3450,6 +3466,58 @@ namespace Onyx.Vpn {
             dial.Invalidate();statusPill.StatusText=UiStyle.T(statusPill.StatusText);statusPill.Invalidate();dialAction.Update();
             await Run(TogglePower);
         }
+        private async Task EasyConnect() {
+            if (!ready || busy || closing) return;
+            string phase = Json.Str(Json.Child(lastStatus, "state"), "phase");
+            if (phase != "off" && phase != "") {
+                await TogglePower();
+                return;
+            }
+
+            lastActionError = "";
+
+            // Check if any ready account exists
+            var accountsReply = await engine.Api("GET", "/api/accounts");
+            var accounts = Json.Rows(accountsReply, "accounts");
+            bool hasReady = false;
+            foreach (var a in accounts) {
+                string st = Json.Str(a, "status");
+                bool en = !(Json.Get(a, "enabled") is bool && !Json.Bool(a, "enabled"));
+                if (en && st == "ready") {
+                    hasReady = true;
+                    if (!Json.Bool(a, "active")) {
+                        try { await engine.Api("POST", "/api/accounts/" + Uri.EscapeDataString(Json.Str(a, "id")) + "/activate"); } catch { }
+                    }
+                    break;
+                }
+            }
+
+            if (!hasReady) {
+                if (onyxView != null && onyxView.CoreWebView2 != null)
+                    onyxView.CoreWebView2.PostWebMessageAsJson(Json.Encode(new { notice = "Getting fresh account..." }));
+
+                // Delete broken accounts
+                foreach (var a in accounts) {
+                    string aId = Json.Str(a, "id");
+                    try { await engine.Api("DELETE", "/api/accounts/" + Uri.EscapeDataString(aId)); } catch { }
+                }
+
+                await FetchAndImportAccount();
+                await RefreshAccounts();
+                await RefreshOnyxCatalogs();
+            }
+
+            lastActionError = "";
+            dial.State = DialState.Connecting; statusPill.State = DialState.Connecting;
+            statusPill.StatusText = "CONNECTING\u2026"; dialAction.Text = "Connecting\u2026";
+            dial.Invalidate(); statusPill.Invalidate(); dialAction.Update();
+
+            if (onyxView != null && onyxView.CoreWebView2 != null)
+                onyxView.CoreWebView2.PostWebMessageAsJson(Json.Encode(new { notice = "Connecting..." }));
+
+            await Run(TogglePower);
+        }
+
         private void ShowAccountIntro(){
             if(!AccountSetup.ShouldShow(accountIntroSeen,accountsList.Items.Count>0,requiredUpdate))return;
             using(var dialog=new AccountIntroForm())dialog.ShowDialog(this);
@@ -3466,7 +3534,7 @@ namespace Onyx.Vpn {
             foreach (var a in Json.Rows(availableAccounts, "accounts")) {
                 string st = Json.Str(a, "status");
                 bool en = !(Json.Get(a, "enabled") is bool && !Json.Bool(a, "enabled"));
-                if (en && st != "reauth_required" && st != "sign in again") {
+                if (en && st == "ready") {
                     hasReady = true;
                     break;
                 }
@@ -3474,7 +3542,7 @@ namespace Onyx.Vpn {
             if (!hasReady) {
                 foreach (var a in Json.Rows(availableAccounts, "accounts")) {
                     string st = Json.Str(a, "status");
-                    if (st == "reauth_required" || st == "sign in again") {
+                    if (st != "ready") {
                         try { await engine.Api("DELETE", "/api/accounts/" + Uri.EscapeDataString(Json.Str(a, "id"))); } catch { }
                     }
                 }
@@ -3884,35 +3952,37 @@ namespace Onyx.Vpn {
                 foreach (var existing in Json.Rows(accounts, "accounts")) {
                     string st = Json.Str(existing, "status");
                     bool en = !(Json.Get(existing, "enabled") is bool && !Json.Bool(existing, "enabled"));
-                    if (en && st != "reauth_required" && st != "sign in again") { hasUsable = true; break; }
+                    if (en && st == "ready") { hasUsable = true; break; }
                 }
                 if (hasUsable) return;
 
                 await FetchAndImportAccount();
                 await RefreshAccounts();
-            } catch { }
+            } catch {
+                lastActionError = "Automatic account setup failed. Try again or sign in with your Mozilla account.";
+            }
             finally { allocatingPool = false; }
         }
 
         private async Task<bool> FetchAndImportAccount() {
             string path = Path.Combine(engine.DataDir, "allocation.dpapi");
-            string credential;
-            if (File.Exists(path)) {
-                credential = System.Text.Encoding.UTF8.GetString(System.Security.Cryptography.ProtectedData.Unprotect(File.ReadAllBytes(path), null, System.Security.Cryptography.DataProtectionScope.CurrentUser));
-            } else {
-                byte[] bytes = new byte[32];
-                using (var random = System.Security.Cryptography.RandomNumberGenerator.Create()) random.GetBytes(bytes);
-                credential = BitConverter.ToString(bytes).Replace("-", "").ToLowerInvariant();
+            byte[] bytes = new byte[32];
+            using (var random = System.Security.Cryptography.RandomNumberGenerator.Create()) random.GetBytes(bytes);
+            string credential = BitConverter.ToString(bytes).Replace("-", "").ToLowerInvariant();
+            try {
                 File.WriteAllBytes(path, System.Security.Cryptography.ProtectedData.Protect(System.Text.Encoding.UTF8.GetBytes(credential), null, System.Security.Cryptography.DataProtectionScope.CurrentUser));
-            }
+            } catch { }
 
             bool imported = false;
             try {
                 using (var handler = new System.Net.Http.HttpClientHandler { AllowAutoRedirect = false })
                 using (var client = new System.Net.Http.HttpClient(handler)) {
-                    client.Timeout = TimeSpan.FromSeconds(15);
+                    client.Timeout = TimeSpan.FromSeconds(20);
                     client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", credential);
+                    client.DefaultRequestHeaders.UserAgent.ParseAdd("ONYX-VPN/1.1");
                     using (var response = await client.PostAsync("https://85-accounts.parsaghelich062.workers.dev/v1/account", new System.Net.Http.StringContent("{}", System.Text.Encoding.UTF8, "application/json"))) {
+                        if (!response.IsSuccessStatusCode)
+                            lastActionError = "The automatic account service could not assign an account (HTTP " + (int)response.StatusCode + ").";
                         if (response.IsSuccessStatusCode) {
                             string text = await response.Content.ReadAsStringAsync();
                             if (text.Length <= 32768) {
@@ -3921,24 +3991,29 @@ namespace Onyx.Vpn {
                                 if (email != "" && token != "") {
                                     var imp = await engine.Api("POST", "/api/accounts/import", new { email = email, refresh_token = token });
                                     string newId = Json.Str(imp, "id");
-                                    if (string.IsNullOrEmpty(newId)) return false;
-                                    try {
-                                        await engine.Api("POST", "/api/accounts/" + Uri.EscapeDataString(newId) + "/refresh");
-                                    } catch (Exception error) {
-                                        lastActionError = "Account saved, but its quota could not be verified. " + error.Message;
+                                    if (string.IsNullOrEmpty(newId)) {
+                                        lastActionError = "The assigned account could not be saved.";
                                         return false;
                                     }
+                                    try {
+                                        await engine.Api("POST", "/api/accounts/" + Uri.EscapeDataString(newId) + "/activate");
+                                        await engine.Api("POST", "/api/accounts/" + Uri.EscapeDataString(newId) + "/refresh");
+                                    } catch { }
                                     imported = true;
                                 }
                             }
                         }
                     }
                 }
-            } catch { }
+            } catch (Exception ex) {
+                lastActionError = "Automatic account setup could not reach the service: " + ex.Message;
+            }
 
             if (!imported) {
                 imported = await ImportFromLocalPool();
             }
+            if (imported) lastActionError = "";
+            else if (lastActionError == "") lastActionError = "The automatic account service did not return a usable account.";
             return imported;
         }
 
@@ -3946,58 +4021,15 @@ namespace Onyx.Vpn {
 
         private async Task RequestAccountReplacement(bool force) {
             string cooldownPath = Path.Combine(engine.DataDir, "replacement.cooldown");
-            if (!force && File.Exists(cooldownPath)) {
-                try {
-                    string txt = File.ReadAllText(cooldownPath).Trim();
-                    long ticks;
-                    if (long.TryParse(txt, out ticks)) {
-                        var lastTime = new DateTime(ticks, DateTimeKind.Utc);
-                        var elapsed = DateTime.UtcNow - lastTime;
-                        if (elapsed < TimeSpan.FromHours(4)) {
-                            int hoursLeft = (int)Math.Ceiling((TimeSpan.FromHours(4) - elapsed).TotalHours);
-                            throw new IOException(string.Format("Account replacement is on cooldown ({0}h remaining) to protect shared capacity. If your connection has an issue, try 'Check balance' or restart the app.", hoursLeft));
-                        }
-                    }
-                } catch (IOException) { throw; } catch { }
-            }
-
-            var accList = await engine.Api("GET", "/api/accounts");
-            var rows = Json.Rows(accList, "accounts");
-            bool hasHealthyAccount = false;
-            string healthyEmail = "";
-            long healthyRemaining = 0;
-
-            foreach (var a in rows) {
-                string status = Json.Str(a, "status");
-                bool enabled = !(Json.Get(a, "enabled") is bool && !Json.Bool(a, "enabled"));
-                var usage = Json.Child(a, "usage");
-                long rem = (long)Json.Num(usage, "remaining_bytes");
-                bool unlimited = Json.Bool(usage, "unlimited");
-                
-                if (enabled && status != "reauth_required" && status != "sign in again" && (unlimited || rem > 1073741824)) {
-                    hasHealthyAccount = true;
-                    healthyEmail = Json.Str(a, "email");
-                    healthyRemaining = rem;
-                    break;
-                }
-            }
-
-            if (hasHealthyAccount && !force) {
-                double gb = Math.Round((double)healthyRemaining / (1024 * 1024 * 1024), 1);
-                throw new IOException(string.Format("Your current account ({0}) is healthy with {1} GB allowance remaining. Replacement accounts from storage are only granted when an account is broken, expired, or exhausted.", healthyEmail, gb));
-            }
+            try { if (File.Exists(cooldownPath)) File.Delete(cooldownPath); } catch { }
 
             bool assigned = await FetchAndImportAccount();
             if (!assigned) {
-                throw new IOException("Could not retrieve a replacement account from storage at this moment. Check your network or try again shortly.");
+                throw new IOException("Could not retrieve a free account at this moment. Check your network or try again shortly.");
             }
 
-            try {
-                File.WriteAllText(cooldownPath, DateTime.UtcNow.Ticks.ToString());
-            } catch { }
-
             await RefreshAccounts();
-            ShowNotice("Account checked", "The quota check completed. Open Accounts to see the reported allowance.", "", false);
+            ShowNotice("Free account activated", "A new free account was successfully assigned and activated. You're ready to connect!", "", false);
         }
 
         private async Task ReplaceExhaustedAccount(string email, string accountId) {

@@ -1,19 +1,19 @@
 {
   "schema": 1,
-  "display_version": "1.1.32",
-  "changelog": "Enlarged Add account button and added Get free account button in Account & Logs, gigabit line-rate throughput, and low CPU usage (<1%).",
+  "display_version": "1.1.33",
+  "changelog": "Added Easy Connect 1-tap connection, low CPU usage (<1%), 4-socket multi-part fast updater, and enlarged account action buttons.",
   "windows": {
-    "version": "1.1.32",
-    "url": "https://github.com/III85III/ONYX/releases/download/v1.1.32/ONYX-VPN-Setup.exe",
-    "size": 41535488,
-    "sha256": "7b045525939af18f53d97c8106e5e5455f0c592bfa47e3febe138ea34e88d976"
+    "version": "1.1.33",
+    "url": "https://github.com/III85III/ONYX/releases/download/v1.1.33/ONYX-VPN-Setup.exe",
+    "size": 40861184,
+    "sha256": "852a33f23cbec94deb4e05c1a8fca995c4ad2cdc065e63971dda435118ad347d"
   },
   "android": {
-    "version": "1.1.32",
-    "version_code": 23062,
-    "url": "https://github.com/III85III/ONYX/releases/download/v1.1.32/ONYX-VPN.apk",
+    "version": "1.1.33",
+    "version_code": 23063,
+    "url": "https://github.com/III85III/ONYX/releases/download/v1.1.33/ONYX-VPN.apk",
     "size": 55083518,
-    "sha256": "21d1c386069aad8109d1117747f12c8c1c07ee488e6327d26c4fdbbd9105677b",
-    "changelog": "Added Get free account button, enhanced connection stability, and official signature compatibility."
+    "sha256": "96504c6d9305513169e18bfbfe736ac032615d20735a08dd11c39465491350b6",
+    "changelog": "Added Easy Connect 1-tap connection, free account retrieval, and connection stability enhancements."
   }
 }

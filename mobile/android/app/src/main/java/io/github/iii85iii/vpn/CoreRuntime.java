@@ -132,8 +132,8 @@ final class CoreRuntime {
             if (proxy == null) proxy = new JSONObject();
             proxy.put("listen", "0.0.0.0:" + localProxyPort);
             if (!proxy.has("transport")) proxy.put("transport", "h2");
-            if (!proxy.has("upstream_connections") || (prevVersion < 5 && proxy.optInt("upstream_connections", 1) < 16)) {
-                proxy.put("upstream_connections", 16);
+            if (proxy.optInt("upstream_connections", 0) <= 2) {
+                proxy.put("upstream_connections", 4);
             }
             if (prevVersion < 5 || !proxy.has("max_connections")) proxy.put("max_connections", 0);
             if (!proxy.has("idle_sleep")) proxy.put("idle_sleep", "0s");

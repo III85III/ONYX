@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System;
 using System.IO;
 using System.IO.Compression;
@@ -8,7 +9,7 @@ using System.Windows.Forms;
 
 [assembly: AssemblyProduct("ONYX VPN")]
 [assembly: AssemblyTitle("ONYX VPN Setup")]
-[assembly: AssemblyFileVersion("1.1.28.0")]
+[assembly: AssemblyFileVersion("1.1.33.0")]
 
 internal static class Setup {
     static readonly string Programs = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs");
@@ -76,11 +77,39 @@ internal static class Setup {
     [STAThread]
     static int Main() {
         try {
-            string exe=Install(Path.Combine(Programs,"ONYX","Versions"));
-            Link(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),exe);
-            Link(Environment.GetFolderPath(Environment.SpecialFolder.Programs),exe);
-            MessageBox.Show("ONYX VPN is installed. When you are ready, exit the previous app and open ONYX VPN from your desktop.","ONYX VPN",MessageBoxButtons.OK,MessageBoxIcon.Information);
+            foreach (var p in Process.GetProcessesByName("onyx_vpn")) {
+                try {
+                    if (p.Id != Process.GetCurrentProcess().Id) {
+                        p.Kill();
+                        p.WaitForExit(3000);
+                    }
+                } catch { }
+            }
+
+            string exe = Install(Path.Combine(Programs, "ONYX", "Versions"));
+            Link(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), exe);
+            Link(Environment.GetFolderPath(Environment.SpecialFolder.Programs), exe);
+
+            string[] candidateDirs = {
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ONYX VPN", "user-data"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "III85III VPN", "user-data"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ONYX", "user-data")
+            };
+            foreach (var dir in candidateDirs) {
+                try {
+                    string f = Path.Combine(dir, "required-update.txt");
+                    if (File.Exists(f)) File.Delete(f);
+                } catch { }
+            }
+
+            Process.Start(new ProcessStartInfo(exe) {
+                UseShellExecute = true,
+                WorkingDirectory = Path.GetDirectoryName(exe)
+            });
             return 0;
-        } catch(Exception error) { MessageBox.Show(error.Message,"ONYX VPN setup",MessageBoxButtons.OK,MessageBoxIcon.Error); return 1; }
+        } catch (Exception error) {
+            MessageBox.Show(error.Message, "ONYX VPN setup", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return 1;
+        }
     }
 }

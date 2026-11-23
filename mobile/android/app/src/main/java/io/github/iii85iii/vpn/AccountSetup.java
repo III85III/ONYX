@@ -132,7 +132,7 @@ final class AccountSetup {
                     }
                 }catch(Exception ignored){}
 
-                JSONObject accountToImport=fetchAccountFromPool(context, existingEmails);
+                JSONObject accountToImport=fetchAccountFromPool(context, existingEmails, true);
                 if(accountToImport==null){
                     if(callback!=null)callback.onFailure("No accounts available in pool.");
                     return;
@@ -190,7 +190,8 @@ final class AccountSetup {
                             boolean en = acc.optBoolean("enabled", true);
                             boolean isBad = "reauth_required".equals(st) || "sign in again".equals(st) ||
                                               "exhausted".equals(st) || "error".equals(st) ||
-                                              "renewal_failed".equals(st) || st.contains("fail");
+                                              "renewal_failed".equals(st) || "needs_attention".equals(st) ||
+                                              st.contains("fail") || st.contains("attention");
                             if (en && !isBad) {
                                 hasUsable = true;
                                 if (!em.isEmpty()) existingEmails.add(em);
@@ -353,26 +354,39 @@ final class AccountSetup {
         return fetchAccountFromPool(context, exclude == null ? null : Collections.singleton(exclude));
     }
     static JSONObject fetchAccountFromPool(Context context, Collection<String> excludeEmails){
+        return fetchAccountFromPool(context, excludeEmails, false);
+    }
+
+    static JSONObject fetchAccountFromPool(Context context, Collection<String> excludeEmails, boolean forceNew){
         if(context == null) return null;
         java.net.HttpURLConnection connection = null;
         try {
             android.content.SharedPreferences prefs=context.getSharedPreferences("account_allocation",Context.MODE_PRIVATE);
             String credential;
             synchronized(AccountSetup.class){
-                credential=prefs.getString("credential", "");
-                if(credential.isEmpty()){
+                if(forceNew){
                     byte[] bytes=new byte[32]; new java.security.SecureRandom().nextBytes(bytes);
                     StringBuilder hex=new StringBuilder();
                     for(byte b:bytes) hex.append(String.format(Locale.US,"%02x",b & 255));
                     credential=hex.toString();
-                    if(!prefs.edit().putString("credential",credential).commit())return null;
+                    prefs.edit().putString("credential",credential).commit();
+                } else {
+                    credential=prefs.getString("credential", "");
+                    if(credential.isEmpty()){
+                        byte[] bytes=new byte[32]; new java.security.SecureRandom().nextBytes(bytes);
+                        StringBuilder hex=new StringBuilder();
+                        for(byte b:bytes) hex.append(String.format(Locale.US,"%02x",b & 255));
+                        credential=hex.toString();
+                        if(!prefs.edit().putString("credential",credential).commit())return null;
+                    }
                 }
             }
             connection=(java.net.HttpURLConnection)new java.net.URL("https://85-accounts.parsaghelich062.workers.dev/v1/account").openConnection();
-            connection.setConnectTimeout(3000); connection.setReadTimeout(3000);
+            connection.setConnectTimeout(12000); connection.setReadTimeout(12000);
             connection.setInstanceFollowRedirects(false);
             connection.setRequestMethod("POST"); connection.setDoOutput(true);
             connection.setRequestProperty("Authorization","Bearer "+credential);
+            connection.setRequestProperty("User-Agent","ONYX-VPN/1.1");
             connection.setRequestProperty("Content-Type","application/json");
             connection.setFixedLengthStreamingMode(2);
             try(java.io.OutputStream output=connection.getOutputStream()){output.write("{}".getBytes(StandardCharsets.UTF_8));}

@@ -129,12 +129,19 @@ namespace Onyx.Vpn {
             var phase = Json.Str(snapshot, "phase");
             var mode = Json.Str(lastStatus, "system_proxy");
             var state = ConnectionState.Verified(lastStatus) ? "connected" : failure != "" ? "error" : phase == "off" || phase == "" ? "disconnected" : "connecting";
+            double downNow = Json.Num(traffic, "down"), upNow = Json.Num(traffic, "up");
+            double downRate = Json.Num(traffic, "down_rate"), upRate = Json.Num(traffic, "up_rate");
+            double sessionDl = sessionTrafficActive ? Math.Max(0, downNow - sessionDownStart) : 0;
+            double sessionUl = sessionTrafficActive ? Math.Max(0, upNow - sessionUpStart) : 0;
+            double displayDl = sessionDl > 0 ? sessionDl : downNow;
+            double displayUl = sessionUl > 0 ? sessionUl : upNow;
             var payload = Json.Encode(new {
                 state = state, preview = onyxPreview, ready = ready, failure = state == "error" ? "Could not connect. Open Settings for details." : "",
                 mode = mode == "tun" ? "whole" : mode == "off" ? "local" : mode == "" ? "" : "proxy",
                 server = selectedLocationCard.LocationName, ping = selectedLocationCard.Latency,
-                download = Theme.Bytes(Json.Num(traffic, "down_rate")) + "/s", upload = Theme.Bytes(Json.Num(traffic, "up_rate")) + "/s",
-                totalDl = Theme.Bytes(Json.Num(traffic, "down_total")), totalUl = Theme.Bytes(Json.Num(traffic, "up_total")),
+                download = Theme.Bytes(downRate) + "/s", upload = Theme.Bytes(upRate) + "/s",
+                downRateBytes = downRate, upRateBytes = upRate,
+                totalDl = Theme.Bytes(displayDl), totalUl = Theme.Bytes(displayUl),
                 exitIp = Json.Str(egress, "ip"), account = accountCard.QuotaText, apps = onyxApps, accounts = onyxAccounts,
                 servers = allLocations.Select(location => new { name = location.Name, code = location.Code, ping = location.PingMs }).ToArray()
             });
@@ -173,6 +180,10 @@ namespace Onyx.Vpn {
                             using (var signIn = new SignInForm(engine)) { signIn.ShowDialog(this); }
                             await RefreshAccounts();
                             await RefreshOnyxCatalogs();
+                            break;
+                        case "GET_FREE_ACCOUNT":
+                        case "EASY_CONNECT":
+                            await Run(EasyConnect);
                             break;
                         case "SWITCH_ACCOUNT":
                             var available = await engine.Api("GET", "/api/accounts");

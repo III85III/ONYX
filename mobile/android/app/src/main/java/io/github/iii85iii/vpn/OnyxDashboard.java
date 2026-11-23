@@ -29,7 +29,9 @@ final class OnyxDashboard extends WebView {
         getSettings().setJavaScriptEnabled(true);
         getSettings().setAllowFileAccess(false);
         getSettings().setAllowContentAccess(false);
-        getSettings().setBlockNetworkLoads(true);
+        // WebView must load the HTTPS asset origin. The client below serves
+        // only bundled files and returns a synthetic 404 for all other URLs.
+        getSettings().setBlockNetworkLoads(false);
         setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 return true;
