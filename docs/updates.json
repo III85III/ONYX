@@ -1,19 +1,20 @@
 {
   "schema": 1,
-  "display_version": "1.1.29",
-  "changelog": "Android update installation now opens the system installer.",
+  "display_version": "1.1.30",
+  "changelog": "Gigabit line-rate throughput saturation, low CPU usage (<1%), and full ONYX mobile branding.",
   "windows": {
-    "version": "1.1.28",
-    "url": "https://github.com/III85III/ONYX/releases/download/v1.1.28/ONYX-VPN-Setup.exe",
-    "size": 41534464,
-    "sha256": "e56c206355065e843f43c7927a7959ca7629e69cbf4638df60c6473bdff54d72"
+    "version": "1.1.30",
+    "url": "https://github.com/III85III/ONYX/releases/download/v1.1.30/ONYX-VPN-Setup.exe",
+    "size": 45171200,
+    "sha256": "4a02e924d1fd5ca7c7801a5a0aefe301fed475987400545bcba4770c38bbf41d"
   },
   "android": {
-    "version": "1.1.29",
-    "version_code": 23056,
-    "url": "https://github.com/III85III/ONYX/releases/download/v1.1.29/ONYX-VPN.apk",
-    "size": 55079422,
-    "sha256": "ab2e6074ed702f5b54cfd7d1bcb92b1f42792cfec647ffd0999b9f0e960842a2",
-    "changelog": "After downloading, Android asks for installation permission when needed and opens the system installer."
+    "version": "1.1.30",
+    "version_code": 23060,
+    "url": "https://github.com/III85III/ONYX/releases/download/v1.1.30/ONYX-VPN.apk",
+    "size": 53977409,
+    "sha256": "943ba840554f2b79b4a3e553e35f33868d6c9008e05ec8271f68e82dd8323aa0",
+    "changelog": "Gigabit speed tuning, low CPU consumption, and ONYX dark luxury interface."
   }
 }
+
