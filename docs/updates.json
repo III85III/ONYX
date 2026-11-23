@@ -1,20 +1,19 @@
 {
   "schema": 1,
-  "display_version": "1.1.30",
-  "changelog": "Gigabit line-rate throughput saturation, low CPU usage (<1%), and full ONYX mobile branding.",
+  "display_version": "1.1.32",
+  "changelog": "Enlarged Add account button and added Get free account button in Account & Logs, gigabit line-rate throughput, and low CPU usage (<1%).",
   "windows": {
-    "version": "1.1.30",
-    "url": "https://github.com/III85III/ONYX/releases/download/v1.1.30/ONYX-VPN-Setup.exe",
-    "size": 45171200,
-    "sha256": "4a02e924d1fd5ca7c7801a5a0aefe301fed475987400545bcba4770c38bbf41d"
+    "version": "1.1.32",
+    "url": "https://github.com/III85III/ONYX/releases/download/v1.1.32/ONYX-VPN-Setup.exe",
+    "size": 41535488,
+    "sha256": "7b045525939af18f53d97c8106e5e5455f0c592bfa47e3febe138ea34e88d976"
   },
   "android": {
-    "version": "1.1.30",
-    "version_code": 23060,
-    "url": "https://github.com/III85III/ONYX/releases/download/v1.1.30/ONYX-VPN.apk",
-    "size": 53977409,
-    "sha256": "943ba840554f2b79b4a3e553e35f33868d6c9008e05ec8271f68e82dd8323aa0",
-    "changelog": "Gigabit speed tuning, low CPU consumption, and ONYX dark luxury interface."
+    "version": "1.1.32",
+    "version_code": 23062,
+    "url": "https://github.com/III85III/ONYX/releases/download/v1.1.32/ONYX-VPN.apk",
+    "size": 55083518,
+    "sha256": "21d1c386069aad8109d1117747f12c8c1c07ee488e6327d26c4fdbbd9105677b",
+    "changelog": "Added Get free account button, enhanced connection stability, and official signature compatibility."
   }
 }
-
