@@ -12,8 +12,8 @@ ONYX is a VPN client for Windows and Android that uses Mozilla account sign-in. 
 
 | Platform | Download | Open |
 | --- | --- | --- |
-| Windows x64 | **[ONYX for Windows](https://github.com/III85III/ONYX/releases/latest/download/ONYX-VPN-Setup.exe)** · [Portable ZIP](https://github.com/III85III/ONYX/releases/latest/download/ONYX-Windows-x64.zip) | Run Setup, then open **ONYX VPN** from your desktop. The dashboard uses Microsoft Edge WebView2 Runtime. |
-| Android 8.0+ | **[ONYX for Android](https://github.com/III85III/ONYX/releases/latest/download/ONYX-VPN.apk)** | Open the downloaded APK on your phone. |
+| Windows x64 | **[ONYX for Windows](https://github.com/III85III/ONYX/releases/download/v1.1.33/ONYX-VPN-Setup.exe)** · [Portable ZIP](https://github.com/III85III/ONYX/releases/download/v1.1.33/ONYX-Windows-x64.zip) | Run Setup, then open **ONYX VPN** from your desktop. The dashboard uses Microsoft Edge WebView2 Runtime. |
+| Android 8.0+ | **[ONYX for Android](https://github.com/III85III/ONYX/releases/download/v1.1.33/ONYX-VPN.apk)** | Open the downloaded APK on your phone. |
 
 ## Connection controls
 
